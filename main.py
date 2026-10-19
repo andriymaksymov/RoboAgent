@@ -3,9 +3,10 @@ from agent_core import run_agent
 
 if __name__ == "__main__":
     prompt = (
-        "Create a Python script named 'calculator.py' with a function 'add(a, b)'. "
-        "Run a short test using execute_python. "
-        "Then use replace_in_file to add a function 'multiply(a, b)' and test again."
+        "Create a Python script named 'enlist_folder_content.py' with a function 'folder_content(path: str, workdir: Path)'. "
+        "The function should return a list of all files and directories in the specified path with their names, sizes, and types. "
+        "Ignore hidden files and directories. "
+        "Run a short test using execute_python for relative path './workspace'. "
     )
     print(f"--- Starting task: {prompt} ---\n")
     final_response = run_agent(prompt)

@@ -5,6 +5,7 @@ from .paths import resolve_in_workdir
 
 def replace_in_file(path: str, target_text: str, replacement_text: str, workdir: Path) -> str:
     """Replace the first matching text block in a file under AGENT_WORKDIR."""
+
     try:
         full_path = resolve_in_workdir(workdir, path)
 

@@ -8,6 +8,7 @@ from .execute_python import execute_python
 from .file_reader import read_file
 from .file_replacer import replace_in_file
 from .file_writer import write_file
+from .folder_content import folder_content
 from .system_prompt import load_system_prompt
 
 
@@ -75,6 +76,21 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "folder_content",
+            "description": "Return a list of all files and directories in the specified path with their names, sizes, and types. Ignore hidden files and directories.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"}
+                },
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 
@@ -92,6 +108,9 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
             arguments.get("replacement_text", ""),
             workdir=config.workdir,
         )
+    if tool_name == "folder_content":
+        return folder_content(arguments.get("path", ""), workdir=config.workdir)
+
     return f"[Error]: Unknown tool '{tool_name}'."
 
 
@@ -110,6 +129,8 @@ def run_agent(user_prompt: str) -> str:
     ]
 
     for _ in range(20):
+        print(f"Iteration {_+1}")
+
         response = client.chat.completions.create(
             model=config.model,
             messages=messages,
@@ -141,6 +162,8 @@ def run_agent(user_prompt: str) -> str:
             )
 
             for tool_call in message.tool_calls:
+                print(f"Calling '{tool_call.function.name}' ...")
+
                 try:
                     arguments = json.loads(tool_call.function.arguments or "{}")
                 except json.JSONDecodeError:
