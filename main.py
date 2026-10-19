@@ -1,7 +1,12 @@
+import logging
+
 from agent_core import run_agent
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logger = logging.getLogger(__name__)
+
 #    prompt = (
 #        "Create a Python script named 'enlist_folder_content.py' with a function 'folder_content(path: str, workdir: Path)'. "
 #        "The function should return a list of all files and directories in the specified path with their names, sizes, and types. "
@@ -30,8 +35,7 @@ if __name__ == "__main__":
         "Summarize the key findings and next steps for the project. "
         "Persist your result in 'ANALYSIS.md' file"
     )
-    print(f"--- Starting task: {prompt} ---\n")
+    logger.info("---\nStarting task:\n%s\n---", prompt)
     final_response = run_agent(prompt)
-    print("\n[Agent Final Response]:")
-    print(final_response)
+    logger.info("[Agent Final Response]:\n%s", final_response)
 

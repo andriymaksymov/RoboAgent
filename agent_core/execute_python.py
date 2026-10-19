@@ -1,11 +1,8 @@
 import subprocess
 from pathlib import Path
-from .config import load_config 
 
-def execute_python(code: str, cwd: Path) -> str:
-
-    config = load_config()
-    python_executable = str(config.python_executable)   
+def execute_python(code: str, executable: Path, cwd: Path) -> str:
+    python_executable = str(executable)
 
     """Execute Python code in a subprocess and return stdout/stderr."""
     try:

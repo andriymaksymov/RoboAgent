@@ -1,11 +1,12 @@
 import json
-from typing import Any, Dict, List, Iterable
+import logging
+from typing import Any, Dict, List
 
 from openai import OpenAI
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
-from . import TOOLS
+from .tool_schemas import TOOLS
 from .config import load_config
 from .execute_python import execute_python
 from .file_reader import read_file
@@ -14,17 +15,33 @@ from .file_writer import write_file
 from .folder_content import folder_content
 from .system_prompt import load_system_prompt
 
+logger = logging.getLogger(__name__)
+
 
 def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
-    print(f"Running: {tool_name} ...")
 
     if tool_name == "execute_python":
-        return execute_python(arguments.get("code", ""), cwd=config.workdir)
+        logger.info("Running python...")
+        return execute_python(
+            arguments.get("code", ""), 
+            executable=config.python_executable, 
+            cwd=config.workdir
+        )
     if tool_name == "read_file":
-        return read_file(arguments.get("path", ""), workdir=config.workdir)
+        logger.info("Reading %s...", arguments.get("path", ""))
+        return read_file(
+            arguments.get("path", ""), 
+            workdir=config.workdir
+        )
     if tool_name == "write_file":
-        return write_file(arguments.get("path", ""), arguments.get("content", ""), workdir=config.workdir)
+        logger.info("Writing to %s...", arguments.get("path", ""))
+        return write_file(
+            arguments.get("path", ""), 
+            arguments.get("content", ""), 
+            workdir=config.workdir
+        )
     if tool_name == "replace_in_file":
+        logger.info("Replacing text in %s...", arguments.get("path", ""))
         return replace_in_file(
             arguments.get("path", ""),
             arguments.get("target_text", ""),
@@ -32,7 +49,11 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
             workdir=config.workdir,
         )
     if tool_name == "folder_content":
-        return folder_content(arguments.get("path", ""), workdir=config.workdir)
+        logger.info("Listing folder content for %s...", arguments.get("path", ""))
+        return folder_content(
+            arguments.get("path", ""), 
+            workdir=config.workdir
+        )
 
     return f"[Error]: Unknown tool '{tool_name}'."
 
@@ -91,13 +112,13 @@ def run_agent(user_prompt: str) -> str:
         base_url=config.base_url,
     )
 
-    session: Iterable[ChatCompletionMessageParam] = [
+    session: List[ChatCompletionMessageParam] = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
 
-    for _ in range(20):
-        print(f"Iteration {_+1}")
+    for iteration in range(config.max_iterations):
+        logger.info("Iteration %s", iteration + 1)
 
         response = client.chat.completions.create(
             model=config.model,
