@@ -1,6 +1,6 @@
 import logging
 
-from agent_core import run_agent
+from agent import run_agent
 
 
 if __name__ == "__main__":
@@ -22,19 +22,21 @@ if __name__ == "__main__":
 #        "Provide a proposed plan for further actions based on the analysis."
 #    )
 
+    prompt = (
+        "Create a Python script named 'calc.py' with a function 'add(a, b)', mul(a, b). "
+        "The function 'add' should return the sum of 'a' and 'b', "
+        "and the function 'mul' should return the product of 'a' and 'b'. "
+        "Run a short test using available tools. "
+    )
+
 #    prompt = (
-#        "Create a Python script named 'calc.py' with a function 'add(a, b)'. "
-#        "The function should return the sum of 'a' and 'b'. "
-#        "Run a short test using available tools. "
+#        "Analyse this Python project. It is a package for AI build agent. "
+#        "Provide a detailed analysis of the project's structure, functionality, and potential improvements. "
+#        "Identify any potential issues or areas for optimization within the project. "
+#        "Summarize the key findings and next steps for the project. "
+#        "Persist your result in 'ANALYSIS.md' file"
 #    )
 
-    prompt = (
-        "Analyse this Python project. It is a package for AI build agent. "
-        "Provide a detailed analysis of the project's structure, functionality, and potential improvements. "
-        "Identify any potential issues or areas for optimization within the project. "
-        "Summarize the key findings and next steps for the project. "
-        "Persist your result in 'ANALYSIS.md' file"
-    )
     logger.info("---\nStarting task:\n%s\n---", prompt)
     final_response = run_agent(prompt)
     logger.info("[Agent Final Response]:\n%s", final_response)

@@ -6,14 +6,10 @@ from openai import OpenAI
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
-from .tool_schemas import TOOLS
 from .config import load_config
-from .execute_python import execute_python
-from .file_reader import read_file
-from .file_replacer import replace_in_file
-from .file_writer import write_file
-from .folder_content import folder_content
 from .system_prompt import load_system_prompt
+
+from .core import *
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +20,6 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
         logger.info("Running python...")
         return execute_python(
             arguments.get("code", ""), 
-            executable=config.python_executable, 
             cwd=config.workdir
         )
     if tool_name == "read_file":

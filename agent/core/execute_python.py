@@ -1,13 +1,13 @@
+import sys
 import subprocess
 from pathlib import Path
 
-def execute_python(code: str, executable: Path, cwd: Path) -> str:
-    python_executable = str(executable)
+def execute_python(code: str, cwd: Path) -> str:
 
     """Execute Python code in a subprocess and return stdout/stderr."""
     try:
         result = subprocess.run(
-            [python_executable, "-c", code],
+            [sys.executable, "-c", code],
             capture_output=True,
             text=True,
             timeout=20,
