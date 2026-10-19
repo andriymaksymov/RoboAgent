@@ -1,12 +1,12 @@
 # RoboAgent
 
-An AI agent powered by Google Gemini with local Python execution tools.
+An AI coding agent powered by an OpenAI-compatible API (including on-prem AI servers) with local Python execution tools.
 
 ## Features
 
-- Integration with Google Gemini API
+- Integration with OpenAI-compatible chat API
 - Local Python code execution
-- Calculator utilities
+- Tool calling for file read/write/replace operations
 - Rich terminal output
 
 ## Setup
@@ -14,7 +14,7 @@ An AI agent powered by Google Gemini with local Python execution tools.
 ### Prerequisites
 
 - Python 3.11 or higher
-- Google Gemini API key
+- OpenAI-compatible API endpoint
 
 ### Installation
 
@@ -47,9 +47,17 @@ pip install -r requirements.txt
 Create a `.env` file in the project root with your API key:
 
 ```
-GEMINI_API_KEY=your_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
+OPENAI_API_KEY=your_api_key_here
+OPENAI_BASE_URL=http://localhost:8000/v1
+OPENAI_MODEL=gpt-4o-mini
+AGENT_WORKDIR=./workspace
+AGENT_SYSTEM_PROMPT_DIR=./prompts
+AGENT_SYSTEM_PROMPT_FILE=system.txt
 ```
+
+`AGENT_WORKDIR` controls where generated code files are created and edited.
+
+`AGENT_SYSTEM_PROMPT_DIR` and `AGENT_SYSTEM_PROMPT_FILE` define where the system prompt is loaded from.
 
 ## Usage
 
@@ -84,12 +92,22 @@ black . --check
 
 ```
 RoboAgent/
-├── agent.py           # Main agent implementation
-├── calculator.py      # Calculator utilities
-├── requirements.txt   # Project dependencies
-├── pyproject.toml     # Project configuration
-├── .gitignore         # Git ignore rules
-└── README.md          # This file
+├── agent.py                   # Main entrypoint
+├── agent_core/                # Agent package
+│   ├── __init__.py
+│   ├── config.py
+│   ├── runner.py
+│   ├── execute_python.py
+│   ├── file_reader.py
+│   ├── file_writer.py
+│   ├── file_replacer.py
+│   ├── paths.py
+│   └── system_prompt.py
+├── prompts/
+│   └── system.txt             # System prompt content
+├── requirements.txt
+├── pyproject.toml
+└── README.md
 ```
 
 ## License

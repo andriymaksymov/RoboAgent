@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "robo-agent"
+name = "agent-core"
 version = "0.1.0"
-description = "An AI agent using Google Gemini with local tools"
+description = "An AI coding agent using OpenAI-compatible APIs with local tools"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -13,7 +13,7 @@ authors = [
     {name = "Developer"}
 ]
 dependencies = [
-    "google-genai",
+    "openai",
     "python-dotenv",
     "rich",
 ]
