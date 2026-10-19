@@ -7,6 +7,7 @@ from .git_add import git_add
 from .git_commit import git_commit
 from .git_diff import git_diff
 from .git_log import git_log
+from .git_pull import git_pull
 from .git_status import git_status
 
 TOOLS = [
@@ -78,6 +79,19 @@ TOOLS = [
                 "type": "object",
                 "properties": {"path": {"type": "string"}},
                 "required": ["path"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_pull",
+            "description": "Pull remote changes for a repository in AGENT_WORKDIR.",
+            "parameters": {
+                "type": "object",
+                "properties": {"repo_path": {"type": "string"}},
+                "required": ["repo_path"],
                 "additionalProperties": False,
             },
         },
@@ -168,6 +182,7 @@ __all__ = [
     "replace_in_file",
     "write_file",
     "folder_content",
+    "git_pull",
     "git_status",
     "git_diff",
     "git_add",

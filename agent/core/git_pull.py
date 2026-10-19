@@ -1,0 +1,20 @@
+import logging
+from pathlib import Path
+
+from git import GitCommandError
+
+from .utils import open_repo
+
+logger = logging.getLogger(__name__)
+
+
+def git_pull(repo_path: str, workdir: Path) -> str:
+    """Pull remote changes for a repository under AGENT_WORKDIR."""
+    logger.debug("Running git pull for repo_path=%s", repo_path)
+    try:
+        repo = open_repo(workdir, repo_path)
+        result = repo.git.pull()
+        return result or "Already up to date."
+    except (ValueError, GitCommandError) as exc:
+        logger.exception("git pull failed for repo_path=%s", repo_path)
+        return f"[Git pull error]: {exc}"
