@@ -1,10 +1,10 @@
 # RoboAgent
 
-RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to an OpenAI-compatible chat API, exposes a focused set of local tools to the model, and allows the model to inspect files, edit code, run Python, and perform basic Git operations inside a controlled working directory.
+RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to an OpenAI-compatible chat API, exposes a focused set of local tools to the model, and lets the model inspect files, edit code, run Python, and perform basic Git operations inside a controlled working directory.
 
 ## Purpose
 
-The project is intended as a minimal foundation for an AI-assisted build agent that can:
+The project is a minimal foundation for an AI-assisted build agent that can:
 
 - accept a natural-language task
 - inspect project files and folders
@@ -13,7 +13,7 @@ The project is intended as a minimal foundation for an AI-assisted build agent t
 - review and create Git changes
 - iterate until it produces a final response
 
-Because the API base URL is configurable, RoboAgent works well with local or self-hosted OpenAI-compatible endpoints in addition to hosted APIs.
+Because the API base URL is configurable, RoboAgent can work with hosted APIs as well as local or self-hosted OpenAI-compatible endpoints.
 
 ## Repository Structure
 
@@ -36,7 +36,6 @@ RoboAgent/
 │       ├── git_diff.py          # Shows repository diffs
 │       ├── git_log.py           # Shows recent commit history
 │       ├── git_status.py        # Shows repository status
-│       ├── paths.py             # Legacy path helper module
 │       └── utils.py             # Shared path resolution and git repository helpers
 ├── prompts/
 │   └── system.md                # System prompt used by the agent
@@ -75,6 +74,8 @@ The configured work directory and prompt directory are created automatically if 
 5. appends tool results back into the conversation
 6. repeats until the model returns a final answer or the iteration limit is reached
 
+The runner currently uses the Chat Completions API and keeps the interaction loop intentionally small and easy to inspect.
+
 ### Tool Registry and Local Tools
 
 `agent/core/__init__.py` defines the tool schemas exposed to the model and exports the implementations.
@@ -92,19 +93,21 @@ Available tools:
 - `git_commit(repo_path, message)`
 - `git_log(repo_path, max_count=10)`
 
+These tools are intentionally narrow in scope so the agent can inspect and modify a project while staying within the configured workspace.
+
 ### Path Safety and Git Helpers
 
 `agent/core/utils.py` centralizes path resolution and Git repository access. File and repository operations are constrained to `AGENT_WORKDIR` through `resolve_in_workdir`, which helps prevent accidental access outside the configured workspace.
 
-There is also a `paths.py` module that contains a duplicate path helper. Based on the current code, `utils.py` is the active shared helper and `paths.py` appears to be leftover compatibility or legacy code.
+Git operations are implemented as separate modules and use `GitPython` under the hood.
 
 ### Prompting
 
-The system prompt lives in `prompts/system.md`. It instructs the model to use tools, keep edits focused, validate changes when useful, and return a concise summary.
+The system prompt lives in `prompts/system.md`. It instructs the model to inspect files before editing, validate changes after modifications, keep edits focused, and return a concise summary.
 
 ### Entrypoint
 
-`main.py` is currently a simple manual entrypoint rather than a full CLI. It sets up logging, defines a hard-coded prompt, runs `run_agent`, and logs the final response.
+`main.py` is a simple manual entrypoint rather than a full CLI. It sets up logging, defines a hard-coded prompt, runs `run_agent`, and logs the final response.
 
 ## Setup
 
@@ -151,26 +154,24 @@ Run the example entrypoint with:
 python main.py
 ```
 
-At present, `main.py` is best treated as a development/demo harness. If you want a reusable command-line workflow, the next logical improvement would be adding a real CLI that accepts a prompt and optional configuration overrides.
+At present, `main.py` is best treated as a development or demo harness. A natural next step for the project would be adding a real CLI that accepts a prompt and optional configuration overrides.
 
-## Documentation Updates Made
+## Documentation Notes
 
-This README was refreshed to match the current repository state. Key corrections include:
+This README has been refreshed against the current repository state. Notable points:
 
-- confirming the package name is `RoboAgent` in `pyproject.toml`
-- documenting the current default model as `gpt-5.4`
-- documenting `AGENT_MAX_ITERATIONS`
-- reflecting the current `agent/` package layout and Git tool modules
-- noting the presence of `agent/core/paths.py`, which is not part of the main documented flow
-- clarifying that `main.py` is a manual/demo entrypoint rather than a polished CLI
+- the package name in `pyproject.toml` is `RoboAgent`
+- the default model is `gpt-5.4`
+- `AGENT_MAX_ITERATIONS` is part of the active configuration
+- Git support is already integrated through dedicated tool modules
+- the current entrypoint is a demo script, not a polished command-line interface
 
 ## Observations
 
 - The project is intentionally lightweight and easy to inspect.
-- Git support is already integrated through dedicated tool modules.
+- The codebase is organized around a small runner plus modular tool implementations.
 - There are no tests in the repository yet, although development dependencies include `pytest`.
-- `agent/runner.py` uses explicit imports from `agent.core`, which is clearer than wildcard imports.
-- `agent/core/folder_content.py` includes an unused `Path` import and could be cleaned up in a future refactor.
+- The system prompt and runtime configuration are both file-based and easy to customize.
 
 ## Development
 
