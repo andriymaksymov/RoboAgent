@@ -15,7 +15,6 @@ class AgentConfig:
     workdir: Path
     system_prompt_dir: Path
     system_prompt_file: str
-    python_executable: Path
     max_iterations: int
 
 
@@ -36,7 +35,6 @@ def load_config() -> AgentConfig:
     workdir = Path(os.getenv("AGENT_WORKDIR", "./workspace")).resolve()
     system_prompt_dir = Path(os.getenv("AGENT_SYSTEM_PROMPT_DIR", "./prompts")).resolve()
     system_prompt_file = os.getenv("AGENT_SYSTEM_PROMPT_FILE", "system.md")
-    python_executable = Path(os.getenv("AGENT_PYTHON_EXECUTABLE", ".venv/Scripts/python.exe")).resolve()
     max_iterations = _parse_positive_int(os.getenv("AGENT_MAX_ITERATIONS", "20"), 20)
 
     workdir.mkdir(parents=True, exist_ok=True)
@@ -49,6 +47,5 @@ def load_config() -> AgentConfig:
         workdir=workdir,
         system_prompt_dir=system_prompt_dir,
         system_prompt_file=system_prompt_file,
-        python_executable=python_executable,
         max_iterations=max_iterations,
     )
