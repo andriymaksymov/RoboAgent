@@ -35,6 +35,7 @@ RoboAgent/
 │       ├── git_commit.py        # Creates git commits
 │       ├── git_diff.py          # Shows repository diffs
 │       ├── git_log.py           # Shows recent commit history
+│       ├── git_pull.py          # Pulls remote changes
 │       ├── git_status.py        # Shows repository status
 │       └── utils.py             # Shared path resolution and git repository helpers
 ├── prompts/
@@ -87,6 +88,7 @@ Available tools:
 - `write_file(path, content)`
 - `replace_in_file(path, target_text, replacement_text)`
 - `folder_content(path)`
+- `git_pull(repo_path)`
 - `git_status(repo_path)`
 - `git_diff(repo_path, rev=None)`
 - `git_add(repo_path, pathspec)`
@@ -99,7 +101,7 @@ These tools are intentionally narrow in scope so the agent can inspect and modif
 
 `agent/core/utils.py` centralizes path resolution and Git repository access. File and repository operations are constrained to `AGENT_WORKDIR` through `resolve_in_workdir`, which helps prevent accidental access outside the configured workspace.
 
-Git operations are implemented as separate modules and use `GitPython` under the hood.
+Git operations are implemented as separate modules and use `GitPython` under the hood. The available workflow now includes `git_pull`, allowing the agent to begin repository work by synchronizing with the remote before inspecting status or making changes.
 
 ### Prompting
 
@@ -163,7 +165,7 @@ This README has been refreshed against the current repository state. Notable poi
 - the package name in `pyproject.toml` is `RoboAgent`
 - the default model is `gpt-5.4`
 - `AGENT_MAX_ITERATIONS` is part of the active configuration
-- Git support is already integrated through dedicated tool modules
+- Git support is integrated through dedicated tool modules, including `git_pull` for repository synchronization
 - the current entrypoint is a demo script, not a polished command-line interface
 
 ## Observations

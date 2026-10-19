@@ -15,6 +15,7 @@ from .core import (
     git_commit,
     git_diff,
     git_log,
+    git_pull,
     git_status,
     read_file,
     replace_in_file,
@@ -52,6 +53,12 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
         return folder_content(
             arguments.get("path", ""), 
             workdir=config.workdir
+        )
+    if tool_name == "git_pull":
+        logger.info("git pull %s ...", arguments.get("repo_path", ""))
+        return git_pull(
+            arguments.get("repo_path", ""),
+            workdir=config.workdir,
         )
     if tool_name == "git_status":
         logger.info("git status %s ...", arguments.get("repo_path", ""))
