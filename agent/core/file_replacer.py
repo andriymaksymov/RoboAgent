@@ -1,11 +1,14 @@
+import logging
 from pathlib import Path
 
-from .paths import resolve_in_workdir
+from .utils import resolve_in_workdir
+
+logger = logging.getLogger(__name__)
 
 
 def replace_in_file(path: str, target_text: str, replacement_text: str, workdir: Path) -> str:
     """Replace the first matching text block in a file under AGENT_WORKDIR."""
-
+    logger.info("Replacing text in file at path=%s", path)
     try:
         full_path = resolve_in_workdir(workdir, path)
 
@@ -20,4 +23,5 @@ def replace_in_file(path: str, target_text: str, replacement_text: str, workdir:
         full_path.write_text(updated, encoding="utf-8")
         return f"[Success]: Replaced text in '{full_path}'."
     except Exception as exc:
+        logger.exception("Failed to replace text in file at path=%s", path)
         return f"[Replace error]: {exc}"

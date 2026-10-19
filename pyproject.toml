@@ -16,6 +16,7 @@ dependencies = [
     "openai",
     "python-dotenv",
     "rich",
+    "GitPython",
 ]
 
 [project.optional-dependencies]

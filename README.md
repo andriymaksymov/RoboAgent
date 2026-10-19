@@ -38,7 +38,12 @@ RoboAgent/
 │       ├── file_writer.py       # Writes files in AGENT_WORKDIR
 │       ├── file_replacer.py     # Replaces text in files
 │       ├── folder_content.py    # Lists directory contents as JSON
-│       └── paths.py             # Enforces AGENT_WORKDIR path boundaries
+│       ├── git_add.py           # Stages files in a git repository
+│       ├── git_commit.py        # Creates git commits
+│       ├── git_diff.py          # Shows repository diffs
+│       ├── git_log.py           # Shows recent commit history
+│       ├── git_status.py        # Shows repository status
+│       └── utils.py             # Shared path resolution and repository opening helpers
 ├── prompts/
 │   └── system.md                # System prompt used by the agent
 ├── main.py                      # Example/manual entrypoint
@@ -87,12 +92,21 @@ Available tools:
 - `write_file(path, content)`
 - `replace_in_file(path, target_text, replacement_text)`
 - `folder_content(path)`
+- `git_status(repo_path)`
+- `git_diff(repo_path, rev=None)`
+- `git_add(repo_path, pathspec)`
+- `git_commit(repo_path, message)`
+- `git_log(repo_path, max_count=10)`
 
-### 4. Path safety
+### 4. Path safety and git helpers
 
-`agent/core/paths.py` restricts file operations to `AGENT_WORKDIR`. Relative paths are resolved under that directory, and paths outside it are rejected.
+`agent/core/utils.py` provides the shared `resolve_in_workdir` helper used to keep file and repository access inside `AGENT_WORKDIR`. The same module also centralizes repository opening with GitPython so git tools share consistent validation and error handling.
 
-### 5. Prompting
+### 5. Git tooling
+
+Git operations are implemented as separate modules for modularity and maintainability. Each operation logs its activity and handles repository or command failures gracefully.
+
+### 6. Prompting
 
 The system prompt is stored in `prompts/system.md`. It instructs the model to use tools, validate changes with Python execution when useful, keep edits focused, and provide a concise summary.
 

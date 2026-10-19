@@ -3,37 +3,41 @@ import logging
 from typing import Any, Dict, List
 
 from openai import OpenAI
-from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 
 from .config import load_config
+from .core import (
+    TOOLS,
+    execute_python,
+    folder_content,
+    git_add,
+    git_commit,
+    git_diff,
+    git_log,
+    git_status,
+    read_file,
+    replace_in_file,
+    write_file,
+)
 from .system_prompt import load_system_prompt
-
-from .core import *
 
 logger = logging.getLogger(__name__)
 
 
 def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
-
     if tool_name == "execute_python":
         logger.info("Running python...")
-        return execute_python(
-            arguments.get("code", ""), 
-            cwd=config.workdir
-        )
+        return execute_python(arguments.get("code", ""), cwd=config.workdir)
     if tool_name == "read_file":
         logger.info("Reading %s...", arguments.get("path", ""))
-        return read_file(
-            arguments.get("path", ""), 
-            workdir=config.workdir
-        )
+        return read_file(arguments.get("path", ""), workdir=config.workdir)
     if tool_name == "write_file":
         logger.info("Writing to %s...", arguments.get("path", ""))
         return write_file(
-            arguments.get("path", ""), 
-            arguments.get("content", ""), 
-            workdir=config.workdir
+            arguments.get("path", ""),
+            arguments.get("content", ""),
+            workdir=config.workdir,
         )
     if tool_name == "replace_in_file":
         logger.info("Replacing text in %s...", arguments.get("path", ""))
@@ -45,9 +49,32 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
         )
     if tool_name == "folder_content":
         logger.info("Listing folder content for %s...", arguments.get("path", ""))
-        return folder_content(
-            arguments.get("path", ""), 
-            workdir=config.workdir
+        return folder_content(arguments.get("path", ""), workdir=config.workdir)
+    if tool_name == "git_status":
+        return git_status(arguments.get("repo_path", ""), workdir=config.workdir)
+    if tool_name == "git_diff":
+        return git_diff(
+            arguments.get("repo_path", ""),
+            workdir=config.workdir,
+            rev=arguments.get("rev"),
+        )
+    if tool_name == "git_add":
+        return git_add(
+            arguments.get("repo_path", ""),
+            arguments.get("pathspec", ""),
+            workdir=config.workdir,
+        )
+    if tool_name == "git_commit":
+        return git_commit(
+            arguments.get("repo_path", ""),
+            arguments.get("message", ""),
+            workdir=config.workdir,
+        )
+    if tool_name == "git_log":
+        return git_log(
+            arguments.get("repo_path", ""),
+            workdir=config.workdir,
+            max_count=arguments.get("max_count", 10),
         )
 
     return f"[Error]: Unknown tool '{tool_name}'."

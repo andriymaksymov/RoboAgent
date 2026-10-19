@@ -1,10 +1,14 @@
+import logging
 from pathlib import Path
 
-from .paths import resolve_in_workdir
+from .utils import resolve_in_workdir
+
+logger = logging.getLogger(__name__)
 
 
 def write_file(path: str, content: str, workdir: Path) -> str:
     """Create or fully overwrite a file under AGENT_WORKDIR."""
+    logger.info("Writing file at path=%s", path)
     try:
         full_path = resolve_in_workdir(workdir, path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
@@ -12,4 +16,5 @@ def write_file(path: str, content: str, workdir: Path) -> str:
             handle.write(content)
         return f"[Success]: '{full_path}' written."
     except Exception as exc:
+        logger.exception("Failed to write file at path=%s", path)
         return f"[Write error]: {exc}"
