@@ -13,7 +13,7 @@ def folder_content(path: str, workdir: Path) -> str:
     Return a list of all files and directories in the specified path with their names, sizes, and types.
     Ignore hidden files and directories.
     """
-    logger.info("Listing folder content at path=%s", path)
+    logger.debug("Listing folder content at path=%s", path)
     try:
         full_path = resolve_in_workdir(workdir, path)
 

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def replace_in_file(path: str, target_text: str, replacement_text: str, workdir: Path) -> str:
     """Replace the first matching text block in a file under AGENT_WORKDIR."""
-    logger.info("Replacing text in file at path=%s", path)
+    logger.debug("Replacing text in file at path=%s", path)
     try:
         full_path = resolve_in_workdir(workdir, path)
 

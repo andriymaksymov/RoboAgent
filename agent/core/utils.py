@@ -18,7 +18,7 @@ def resolve_in_workdir(workdir: Path, user_path: str) -> Path:
 
 def open_repo(workdir: Path, repo_path: str = ".") -> Repo:
     resolved_path = resolve_in_workdir(workdir, repo_path)
-    logger.info("Opening git repository at %s", resolved_path)
+    logger.debug("Opening git repository at %s", resolved_path)
     try:
         return Repo(resolved_path)
     except (InvalidGitRepositoryError, NoSuchPathError) as exc:

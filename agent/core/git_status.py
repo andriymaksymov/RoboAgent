@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def git_status(repo_path: str, workdir: Path) -> str:
     """Return git status output for a repository under AGENT_WORKDIR."""
-    logger.info("Running git status for repo_path=%s", repo_path)
+    logger.debug("Running git status for repo_path=%s", repo_path)
     try:
         repo = open_repo(workdir, repo_path)
         return repo.git.status()

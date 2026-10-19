@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def write_file(path: str, content: str, workdir: Path) -> str:
     """Create or fully overwrite a file under AGENT_WORKDIR."""
-    logger.info("Writing file at path=%s", path)
+    logger.debug("Writing file at path=%s", path)
     try:
         full_path = resolve_in_workdir(workdir, path)
         full_path.parent.mkdir(parents=True, exist_ok=True)

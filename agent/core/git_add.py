@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def git_add(repo_path: str, pathspec: str, workdir: Path) -> str:
     """Stage a file or pathspec in a repository under AGENT_WORKDIR."""
-    logger.info("Running git add for repo_path=%s pathspec=%s", repo_path, pathspec)
+    logger.debug("Running git add for repo_path=%s pathspec=%s", repo_path, pathspec)
     try:
         repo = open_repo(workdir, repo_path)
         resolved_repo = resolve_in_workdir(workdir, repo_path)

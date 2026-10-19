@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def read_file(path: str, workdir: Path) -> str:
     """Read a local file from AGENT_WORKDIR."""
-    logger.info("Reading file at path=%s", path)
+    logger.debug("Reading file at path=%s", path)
     try:
         full_path = resolve_in_workdir(workdir, path)
         with full_path.open("r", encoding="utf-8") as handle:

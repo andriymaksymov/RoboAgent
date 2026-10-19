@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def git_commit(repo_path: str, message: str, workdir: Path) -> str:
     """Create a git commit in a repository under AGENT_WORKDIR."""
-    logger.info("Running git commit for repo_path=%s", repo_path)
+    logger.debug("Running git commit for repo_path=%s", repo_path)
     try:
         repo = open_repo(workdir, repo_path)
         commit = repo.index.commit(

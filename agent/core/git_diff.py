@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def git_diff(repo_path: str, workdir: Path, rev: str | None = None) -> str:
     """Return git diff output for a repository under AGENT_WORKDIR."""
-    logger.info("Running git diff for repo_path=%s rev=%s", repo_path, rev)
+    logger.debug("Running git diff for repo_path=%s rev=%s", repo_path, rev)
     try:
         repo = open_repo(workdir, repo_path)
         return repo.git.diff(rev) if rev else repo.git.diff()
