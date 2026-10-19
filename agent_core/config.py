@@ -31,7 +31,7 @@ def _parse_positive_int(value: str, default: int) -> int:
 def load_config() -> AgentConfig:
     api_key = os.getenv("OPENAI_API_KEY", "")
     base_url = os.getenv("OPENAI_BASE_URL", "http://localhost:8000/v1")
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-5.4")
 
     workdir = Path(os.getenv("AGENT_WORKDIR", "./workspace")).resolve()
     system_prompt_dir = Path(os.getenv("AGENT_SYSTEM_PROMPT_DIR", "./prompts")).resolve()
