@@ -1,8 +1,11 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Iterable
 
 from openai import OpenAI
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+from openai.types.chat.chat_completion_message import ChatCompletionMessage
 
+from . import TOOLS
 from .config import load_config
 from .execute_python import execute_python
 from .file_reader import read_file
@@ -12,89 +15,9 @@ from .folder_content import folder_content
 from .system_prompt import load_system_prompt
 
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "execute_python",
-            "description": "Execute Python code in a subprocess.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "code": {"type": "string"}
-                },
-                "required": ["code"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Read a local file from AGENT_WORKDIR.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string"}
-                },
-                "required": ["path"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "Create or fully overwrite a file in AGENT_WORKDIR.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string"},
-                    "content": {"type": "string"},
-                },
-                "required": ["path", "content"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "replace_in_file",
-            "description": "Replace the first matching text block in a file in AGENT_WORKDIR.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string"},
-                    "target_text": {"type": "string"},
-                    "replacement_text": {"type": "string"},
-                },
-                "required": ["path", "target_text", "replacement_text"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "folder_content",
-            "description": "Return a list of all files and directories in the specified path with their names, sizes, and types. Ignore hidden files and directories.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {"type": "string"}
-                },
-                "required": ["path"],
-                "additionalProperties": False,
-            },
-        },
-    },
-]
-
-
 def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
+    print(f"Running tool: {tool_name} with arguments: {arguments}")  # Verbose logging
+
     if tool_name == "execute_python":
         return execute_python(arguments.get("code", ""), cwd=config.workdir)
     if tool_name == "read_file":
@@ -114,6 +37,53 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
     return f"[Error]: Unknown tool '{tool_name}'."
 
 
+def _process_completion(message: ChatCompletionMessage, config, session):
+    assistant_tool_calls = []
+    for tool_call in message.tool_calls:
+        assistant_tool_calls.append(
+            {
+                "id": tool_call.id,
+                "type": "function",
+                "function": {
+                    "name": tool_call.function.name,
+                    "arguments": tool_call.function.arguments,
+                },
+            }
+        )
+
+    session.append(
+        {
+            "role": "assistant",
+            "content": message.content or "",
+            "tool_calls": assistant_tool_calls,
+        }
+    )
+
+    for tool_call in message.tool_calls:
+        print(f"Calling '{tool_call.function.name}' ...")
+
+        try:
+            parsed_arguments = json.loads(tool_call.function.arguments or "{}")
+            if isinstance(parsed_arguments, list):
+                arguments = parsed_arguments[0] if parsed_arguments else {}
+            elif isinstance(parsed_arguments, dict):
+                arguments = parsed_arguments
+            else:
+                arguments = {}
+        except (json.JSONDecodeError, TypeError):
+            arguments = {}
+
+        tool_output = _run_tool(tool_call.function.name, arguments, config)
+        session.append(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": tool_call.function.name,
+                "content": tool_output,
+            }
+        )
+
+
 def run_agent(user_prompt: str) -> str:
     config = load_config()
     system_prompt = load_system_prompt(config.system_prompt_dir, config.system_prompt_file)
@@ -123,7 +93,7 @@ def run_agent(user_prompt: str) -> str:
         base_url=config.base_url,
     )
 
-    messages: List[Dict[str, Any]] = [
+    session: Iterable[ChatCompletionMessageParam] = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
@@ -133,51 +103,14 @@ def run_agent(user_prompt: str) -> str:
 
         response = client.chat.completions.create(
             model=config.model,
-            messages=messages,
+            messages=session,
             tools=TOOLS,
             temperature=0.1,
         )
+
         message = response.choices[0].message
-
         if message.tool_calls:
-            assistant_tool_calls = []
-            for tool_call in message.tool_calls:
-                assistant_tool_calls.append(
-                    {
-                        "id": tool_call.id,
-                        "type": "function",
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments,
-                        },
-                    }
-                )
-
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": message.content or "",
-                    "tool_calls": assistant_tool_calls,
-                }
-            )
-
-            for tool_call in message.tool_calls:
-                print(f"Calling '{tool_call.function.name}' ...")
-
-                try:
-                    arguments = json.loads(tool_call.function.arguments or "{}")
-                except json.JSONDecodeError:
-                    arguments = {}
-
-                tool_output = _run_tool(tool_call.function.name, arguments, config)
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_call.function.name,
-                        "content": tool_output,
-                    }
-                )
+            _process_completion(message, config, session)
             continue
 
         return message.content or ""
