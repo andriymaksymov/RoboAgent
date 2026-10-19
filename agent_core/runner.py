@@ -16,7 +16,7 @@ from .system_prompt import load_system_prompt
 
 
 def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
-    print(f"Running tool: {tool_name} with arguments: {arguments}")  # Verbose logging
+    print(f"Running: {tool_name} ...")
 
     if tool_name == "execute_python":
         return execute_python(arguments.get("code", ""), cwd=config.workdir)
@@ -60,8 +60,6 @@ def _process_completion(message: ChatCompletionMessage, config, session):
     )
 
     for tool_call in message.tool_calls:
-        print(f"Calling '{tool_call.function.name}' ...")
-
         try:
             parsed_arguments = json.loads(tool_call.function.arguments or "{}")
             if isinstance(parsed_arguments, list):

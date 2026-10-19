@@ -25,7 +25,7 @@ def load_config() -> AgentConfig:
 
     workdir = Path(os.getenv("AGENT_WORKDIR", "./workspace")).resolve()
     system_prompt_dir = Path(os.getenv("AGENT_SYSTEM_PROMPT_DIR", "./prompts")).resolve()
-    system_prompt_file = os.getenv("AGENT_SYSTEM_PROMPT_FILE", "system.txt")
+    system_prompt_file = os.getenv("AGENT_SYSTEM_PROMPT_FILE", "system.md")
     python_executable = Path(os.getenv("AGENT_PYTHON_EXECUTABLE", ".venv/Scripts/python.exe")).resolve()
 
     workdir.mkdir(parents=True, exist_ok=True)

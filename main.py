@@ -17,12 +17,19 @@ if __name__ == "__main__":
 #        "Provide a proposed plan for further actions based on the analysis."
 #    )
 
-    prompt = (
-        "Create a Python script named 'calc.py' with a function 'add(a, b)'. "
-        "The function should return the sum of 'a' and 'b'. "
-        "Run a short test using available tools. "
-    )
+#    prompt = (
+#        "Create a Python script named 'calc.py' with a function 'add(a, b)'. "
+#        "The function should return the sum of 'a' and 'b'. "
+#        "Run a short test using available tools. "
+#    )
 
+    prompt = (
+        "Analyse this Python project. It is a package for AI build agent. "
+        "Provide a detailed analysis of the project's structure, functionality, and potential improvements. "
+        "Identify any potential issues or areas for optimization within the project. "
+        "Summarize the key findings and next steps for the project. "
+        "Persist your result in 'ANALYSIS.md' file"
+    )
     print(f"--- Starting task: {prompt} ---\n")
     final_response = run_agent(prompt)
     print("\n[Agent Final Response]:")
