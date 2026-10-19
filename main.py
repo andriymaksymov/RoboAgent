@@ -30,16 +30,16 @@ if __name__ == "__main__":
 #    )
 
     prompt = (
-        "It is a python project for an AI build agent. Analyse this project in 'RoboAgent' directory. "
+        "It is a Python project for a lightweight AI build agent. "
         "Read README.md and other relevant documentation files in the project. "
-        "Enrich tools with git functionality. Use GitPython for interacting with git repositories. "
-        "Each git operation should be placed in a separate python file for better modularity and maintainability. "
-        "Place common function as 'resolve_in_workdir' or used to open repo in the same file 'utils.py'. "
-        "Ensure that all git operations are logged and any errors are properly handled. "
+#        "Enrich tools with git functionality. Use GitPython for interacting with git repositories. "
+#        "Each git operation should be placed in a separate python file for better modularity and maintainability. "
+#        "Place common function as 'resolve_in_workdir' or used to open repo in the same file 'utils.py'. "
+#        "Ensure that all git operations are logged and any errors are properly handled. "
         
-#        "Provide a summary of the project's purpose, structure, and key components. "
-#        "Refresh README.md content to ensure the latest information is considered. "
-#        "Provide any necessary updates or corrections to the documentation based on the analysis."
+        "Provide a summary of the project's purpose, structure, and key components. "
+        "Refresh README.md content to ensure the latest information is considered. "
+        "Provide any necessary updates or corrections to the documentation based on the analysis."
     )
 
     logger.info("---\nStarting task:\n%s\n---", prompt)

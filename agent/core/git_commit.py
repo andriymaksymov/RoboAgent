@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from git import GitCommandError
+from git import GitCommandError, Actor
 
 from .utils import open_repo
 
@@ -13,7 +13,10 @@ def git_commit(repo_path: str, message: str, workdir: Path) -> str:
     logger.info("Running git commit for repo_path=%s", repo_path)
     try:
         repo = open_repo(workdir, repo_path)
-        commit = repo.index.commit(message)
+        commit = repo.index.commit(
+            message, 
+            committer=Actor("RoboAgent", "roboagent@andriy-maksymov.de")
+        )
         return f"[Success]: Created commit {commit.hexsha}."
     except (ValueError, GitCommandError) as exc:
         logger.exception("git commit failed for repo_path=%s", repo_path)
