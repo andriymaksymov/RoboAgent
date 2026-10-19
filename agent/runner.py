@@ -49,28 +49,39 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
         )
     if tool_name == "folder_content":
         logger.info("Listing folder content for %s...", arguments.get("path", ""))
-        return folder_content(arguments.get("path", ""), workdir=config.workdir)
+        return folder_content(
+            arguments.get("path", ""), 
+            workdir=config.workdir
+        )
     if tool_name == "git_status":
-        return git_status(arguments.get("repo_path", ""), workdir=config.workdir)
+        logger.info("Getting git status for %s...", arguments.get("repo_path", ""))
+        return git_status(
+            arguments.get("repo_path", ""), 
+            workdir=config.workdir
+        )
     if tool_name == "git_diff":
+        logger.info("Getting git diff for %s...", arguments.get("repo_path", ""))
         return git_diff(
             arguments.get("repo_path", ""),
             workdir=config.workdir,
             rev=arguments.get("rev"),
         )
     if tool_name == "git_add":
+        logger.info("Adding to git for %s...", arguments.get("repo_path", ""))
         return git_add(
             arguments.get("repo_path", ""),
             arguments.get("pathspec", ""),
             workdir=config.workdir,
         )
     if tool_name == "git_commit":
+        logger.info("Committing to git for %s...", arguments.get("repo_path", ""))
         return git_commit(
             arguments.get("repo_path", ""),
             arguments.get("message", ""),
             workdir=config.workdir,
         )
     if tool_name == "git_log":
+        logger.info("Getting git log for %s...", arguments.get("repo_path", ""))
         return git_log(
             arguments.get("repo_path", ""),
             workdir=config.workdir,
