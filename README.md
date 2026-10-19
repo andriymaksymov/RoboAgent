@@ -1,28 +1,21 @@
 # RoboAgent
 
-RoboAgent is a lightweight AI coding/build agent for Python projects. It connects to an OpenAI-compatible chat API, exposes a small set of local tools to the model, and lets the model inspect files, edit code, and execute Python inside a controlled working directory.
+RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to an OpenAI-compatible chat API, exposes a focused set of local tools to the model, and allows the model to inspect files, edit code, run Python, and perform basic Git operations inside a controlled working directory.
 
 ## Purpose
 
-The project is designed as a minimal foundation for an AI-assisted build agent that can:
+The project is intended as a minimal foundation for an AI-assisted build agent that can:
 
-- receive a natural-language task
-- call local tools to inspect and modify files
-- run Python code for validation
+- accept a natural-language task
+- inspect project files and folders
+- modify code and documentation
+- execute Python for validation
+- review and create Git changes
 - iterate until it produces a final response
 
-It is especially suited for local or self-hosted OpenAI-compatible endpoints because the API base URL is configurable.
+Because the API base URL is configurable, RoboAgent works well with local or self-hosted OpenAI-compatible endpoints in addition to hosted APIs.
 
-## Current Architecture
-
-The repository currently contains:
-
-- a CLI-style entrypoint in `main.py`
-- the main package in `agent/`
-- prompt files in `prompts/`
-- packaging/configuration files in `pyproject.toml` and `requirements.txt`
-
-### Project structure
+## Repository Structure
 
 ```text
 RoboAgent/
@@ -43,45 +36,46 @@ RoboAgent/
 │       ├── git_diff.py          # Shows repository diffs
 │       ├── git_log.py           # Shows recent commit history
 │       ├── git_status.py        # Shows repository status
-│       └── utils.py             # Shared path resolution and repository opening helpers
+│       ├── paths.py             # Legacy path helper module
+│       └── utils.py             # Shared path resolution and git repository helpers
 ├── prompts/
 │   └── system.md                # System prompt used by the agent
 ├── main.py                      # Example/manual entrypoint
-├── pyproject.toml               # Package metadata and dev tool config
+├── pyproject.toml               # Package metadata and tool configuration
 ├── requirements.txt             # Runtime dependencies
 └── README.md
 ```
 
 ## Key Components
 
-### 1. Configuration
+### Configuration
 
-`agent/config.py` loads environment variables via `python-dotenv` and builds an `AgentConfig` object.
+`agent/config.py` loads environment variables with `python-dotenv` and builds an `AgentConfig` object.
 
 Supported settings:
 
 - `OPENAI_API_KEY`
 - `OPENAI_BASE_URL` (default: `http://localhost:8000/v1`)
-- `OPENAI_MODEL` (default in code: `gpt-5.4`)
+- `OPENAI_MODEL` (default: `gpt-5.4`)
 - `AGENT_WORKDIR` (default: `./workspace`)
 - `AGENT_SYSTEM_PROMPT_DIR` (default: `./prompts`)
 - `AGENT_SYSTEM_PROMPT_FILE` (default: `system.md`)
 - `AGENT_MAX_ITERATIONS` (default: `20`)
 
-The work directory and prompt directory are created automatically if they do not exist.
+The configured work directory and prompt directory are created automatically if they do not already exist.
 
-### 2. Agent loop
+### Agent Runner
 
-`agent/runner.py` contains the main orchestration logic:
+`agent/runner.py` contains the orchestration loop. It:
 
-- loads config and system prompt
-- creates an `OpenAI` client
-- sends the conversation and tool definitions to the model
-- executes requested tools locally
-- appends tool results back into the conversation
-- repeats until the model returns a final answer or the iteration limit is reached
+1. loads configuration and the system prompt
+2. creates an `OpenAI` client
+3. sends the conversation and tool definitions to the model
+4. executes requested tools locally
+5. appends tool results back into the conversation
+6. repeats until the model returns a final answer or the iteration limit is reached
 
-### 3. Tooling layer
+### Tool Registry and Local Tools
 
 `agent/core/__init__.py` defines the tool schemas exposed to the model and exports the implementations.
 
@@ -98,17 +92,19 @@ Available tools:
 - `git_commit(repo_path, message)`
 - `git_log(repo_path, max_count=10)`
 
-### 4. Path safety and git helpers
+### Path Safety and Git Helpers
 
-`agent/core/utils.py` provides the shared `resolve_in_workdir` helper used to keep file and repository access inside `AGENT_WORKDIR`. The same module also centralizes repository opening with GitPython so git tools share consistent validation and error handling.
+`agent/core/utils.py` centralizes path resolution and Git repository access. File and repository operations are constrained to `AGENT_WORKDIR` through `resolve_in_workdir`, which helps prevent accidental access outside the configured workspace.
 
-### 5. Git tooling
+There is also a `paths.py` module that contains a duplicate path helper. Based on the current code, `utils.py` is the active shared helper and `paths.py` appears to be leftover compatibility or legacy code.
 
-Git operations are implemented as separate modules for modularity and maintainability. Each operation logs its activity and handles repository or command failures gracefully.
+### Prompting
 
-### 6. Prompting
+The system prompt lives in `prompts/system.md`. It instructs the model to use tools, keep edits focused, validate changes when useful, and return a concise summary.
 
-The system prompt is stored in `prompts/system.md`. It instructs the model to use tools, validate changes with Python execution when useful, keep edits focused, and provide a concise summary.
+### Entrypoint
+
+`main.py` is currently a simple manual entrypoint rather than a full CLI. It sets up logging, defines a hard-coded prompt, runs `run_agent`, and logs the final response.
 
 ## Setup
 
@@ -126,11 +122,11 @@ source .venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
 ```
 
-Alternatively, install as a package:
+Alternatively:
 
 ```bash
 pip install -e .
-pip install -e ".[dev]"  # optional development tools
+pip install -e ".[dev]"
 ```
 
 ## Configuration
@@ -149,31 +145,32 @@ AGENT_MAX_ITERATIONS=20
 
 ## Usage
 
-Run the project with:
+Run the example entrypoint with:
 
 ```bash
 python main.py
 ```
 
-`main.py` currently contains a hard-coded sample prompt plus commented examples for other tasks. It is best understood as a development/demo entrypoint rather than a polished CLI.
+At present, `main.py` is best treated as a development/demo harness. If you want a reusable command-line workflow, the next logical improvement would be adding a real CLI that accepts a prompt and optional configuration overrides.
 
-## Documentation corrections from analysis
+## Documentation Updates Made
 
-The previous README did not match the current repository layout. The following items were outdated and have been corrected:
+This README was refreshed to match the current repository state. Key corrections include:
 
-- the entrypoint is `main.py`, not `agent.py`
-- the package directory is `agent/`, not `agent_core/`
-- the system prompt file is `prompts/system.md`, not `system.txt`
-- the default model in code is `gpt-5.4`, not `gpt-4o-mini`
-- `AGENT_MAX_ITERATIONS` is supported and should be documented
+- confirming the package name is `RoboAgent` in `pyproject.toml`
+- documenting the current default model as `gpt-5.4`
+- documenting `AGENT_MAX_ITERATIONS`
+- reflecting the current `agent/` package layout and Git tool modules
+- noting the presence of `agent/core/paths.py`, which is not part of the main documented flow
+- clarifying that `main.py` is a manual/demo entrypoint rather than a polished CLI
 
-## Observations and improvement opportunities
+## Observations
 
-- `main.py` is currently a manual test harness with hard-coded prompts; a real CLI interface would improve usability.
-- There are no tests in the repository yet, although the development instructions mention `pytest`.
-- `runner.py` uses `from .core import *`; explicit imports would be clearer and easier to maintain.
-- `folder_content.py` has minor style issues (unused import ordering/formatting), but functionality is straightforward.
-- The package name in `pyproject.toml` is `agent-core`, while the repository name is `RoboAgent`; this may be intentional, but it is worth confirming.
+- The project is intentionally lightweight and easy to inspect.
+- Git support is already integrated through dedicated tool modules.
+- There are no tests in the repository yet, although development dependencies include `pytest`.
+- `agent/runner.py` uses explicit imports from `agent.core`, which is clearer than wildcard imports.
+- `agent/core/folder_content.py` includes an unused `Path` import and could be cleaned up in a future refactor.
 
 ## Development
 
