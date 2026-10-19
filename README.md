@@ -104,7 +104,7 @@ RoboAgent/
 │   ├── paths.py
 │   └── system_prompt.py
 ├── prompts/
-│   └── system.txt             # System prompt content
+│   └── system.md              # System prompt content
 ├── requirements.txt
 ├── pyproject.toml
 └── README.md
@@ -113,3 +113,16 @@ RoboAgent/
 ## License
 
 MIT
+
+## ToDo's
+
+- add repo management functions
+  - create branch
+  - commit branch
+  - create local pull request if possible
+- change system prompt to add git management
+- add token usage statistics
+- add WhatsApp or email notifier
+- add pytest packages
+- add database object explorer functions
+
