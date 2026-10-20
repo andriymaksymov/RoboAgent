@@ -1,6 +1,8 @@
+from .content_search import content_search
 from .execute_python import execute_python
 from .file_reader import read_file
 from .file_replacer import replace_in_file
+from .file_search import file_search
 from .file_writer import write_file
 from .folder_content import folder_content
 from .git_add import git_add
@@ -79,6 +81,39 @@ TOOLS = [
                 "type": "object",
                 "properties": {"path": {"type": "string"}},
                 "required": ["path"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "file_search",
+            "description": "Search for files under a folder and its subfolders using a gitignore-style glob pattern.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "pattern": {"type": "string"},
+                },
+                "required": ["path", "pattern"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "content_search",
+            "description": "Search file contents under a folder and its subfolders, similar to grep. Optionally filter searched files with a gitignore-style glob pattern.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "query": {"type": "string"},
+                    "file_pattern": {"type": "string"},
+                },
+                "required": ["path", "query"],
                 "additionalProperties": False,
             },
         },
@@ -177,9 +212,11 @@ TOOLS = [
 
 __all__ = [
     "TOOLS",
+    "content_search",
     "execute_python",
     "read_file",
     "replace_in_file",
+    "file_search",
     "write_file",
     "folder_content",
     "git_pull",
