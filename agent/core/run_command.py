@@ -1,12 +1,10 @@
-import logging
 import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable
 
-from .utils import resolve_in_workdir
-
-logger = logging.getLogger(__name__)
+from .registry import ToolError, tool
+from .utils import resolve_dir
 
 DEFAULT_TIMEOUT = 120
 MAX_TIMEOUT = 600
@@ -26,6 +24,7 @@ def _strip_python_module_prefix(command: list[str]) -> list[str]:
     return command
 
 
+@tool
 def run_command(
     command: list[str],
     workdir: Path,
@@ -33,27 +32,28 @@ def run_command(
     cwd: str = ".",
     timeout: int | None = None,
 ) -> str:
-    """Run an allowed tool (e.g. pytest, pip, ruff) as a subprocess under AGENT_WORKDIR."""
-    logger.debug("Running command=%s cwd=%s timeout=%s", command, cwd, timeout)
+    """Run an allowed developer tool (e.g. pytest, pip, ruff) in the workdir without a shell. Returns the exit code, stdout and stderr.
 
+    Args:
+        command: Command as a list of arguments, e.g. ["pytest", "-q"] or ["ruff", "check", "."].
+        cwd: Working directory relative to the workdir (default '.').
+        timeout: Timeout in seconds (default 120, max 600).
+    """
+    if not isinstance(command, list) or not command or not all(isinstance(part, str) for part in command):
+        raise ToolError("'command' must be a non-empty list of strings, e.g. [\"pytest\", \"-q\"].")
+
+    program, *program_args = _strip_python_module_prefix(command)
+    allowed = set(allowed_commands)
+    if program not in allowed:
+        raise ToolError(f"Command '{program}' is not allowed. Allowed commands: {', '.join(sorted(allowed))}.")
+
+    run_cwd = resolve_dir(workdir, cwd or ".")
     effective_timeout = min(max(int(timeout or DEFAULT_TIMEOUT), 1), MAX_TIMEOUT)
+
     try:
-        if not isinstance(command, list) or not command or not all(isinstance(part, str) for part in command):
-            return "[Error]: 'command' must be a non-empty list of strings, e.g. [\"pytest\", \"-q\"]."
-
-        command = _strip_python_module_prefix(command)
-        tool, *tool_args = command
-        allowed = set(allowed_commands)
-        if tool not in allowed:
-            return f"[Error]: Command '{tool}' is not allowed. Allowed commands: {', '.join(sorted(allowed))}."
-
-        run_cwd = resolve_in_workdir(workdir, cwd or ".")
-        if not run_cwd.is_dir():
-            return f"[Error]: Path is not a directory: '{cwd}'."
-
         # Run through the agent's interpreter so tools resolve from the same environment.
         result = subprocess.run(
-            [sys.executable, "-m", tool, *tool_args],
+            [sys.executable, "-m", program, *program_args],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -61,16 +61,12 @@ def run_command(
             timeout=effective_timeout,
             cwd=str(run_cwd),
         )
+    except subprocess.TimeoutExpired as exc:
+        raise ToolError(f"Command timed out after {effective_timeout}s.") from exc
 
-        output = f"[Exit code]: {result.returncode}\n"
-        if result.stdout:
-            output += f"[stdout]:\n{_truncate(result.stdout)}\n"
-        if result.stderr:
-            output += f"[stderr]:\n{_truncate(result.stderr)}\n"
-        return output
-    except subprocess.TimeoutExpired:
-        logger.exception("Command timed out: %s", command)
-        return f"[Error]: Command timed out after {effective_timeout}s."
-    except Exception as exc:
-        logger.exception("Failed to run command: %s", command)
-        return f"[Command error]: {exc}"
+    output = f"[Exit code]: {result.returncode}\n"
+    if result.stdout:
+        output += f"[stdout]:\n{_truncate(result.stdout)}\n"
+    if result.stderr:
+        output += f"[stderr]:\n{_truncate(result.stderr)}\n"
+    return output

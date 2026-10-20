@@ -1,34 +1,17 @@
 import json
 import logging
-from typing import Any, Dict, List
+from typing import List
 
 from openai import OpenAI
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 
 from .branch_guard import find_protected_branch_repos
-from .config import load_config
+from .config import AgentConfig, load_config
 from .core import REGISTRY
 from .system_prompt import load_system_prompt
 
 logger = logging.getLogger(__name__)
-
-
-def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
-    tool = REGISTRY.get(tool_name)
-    if tool is None:
-        return f"[Error]: Unknown tool '{tool_name}'."
-
-    if tool.log_arg:
-        logger.info("Running %s %s ...", tool_name, arguments.get(tool.log_arg, ""))
-    else:
-        logger.info("Running %s ...", tool_name)
-
-    try:
-        return tool.handler(arguments, config)
-    except Exception as exc:
-        logger.exception("Tool %s failed", tool_name)
-        return f"[Error]: Tool '{tool_name}' failed: {exc}"
 
 
 def _process_completion(message: ChatCompletionMessage, config, session):
@@ -65,7 +48,7 @@ def _process_completion(message: ChatCompletionMessage, config, session):
         except (json.JSONDecodeError, TypeError):
             arguments = {}
 
-        tool_output = _run_tool(tool_call.function.name, arguments, config)
+        tool_output = REGISTRY.invoke(tool_call.function.name, arguments, config)
         session.append(
             {
                 "role": "tool",
@@ -76,8 +59,8 @@ def _process_completion(message: ChatCompletionMessage, config, session):
         )
 
 
-def run_agent(user_prompt: str) -> str:
-    config = load_config()
+def run_agent(user_prompt: str, config: AgentConfig | None = None) -> str:
+    config = config or load_config()
 
     violations = find_protected_branch_repos(config.workdir, config.protected_branches)
     if violations:
@@ -88,7 +71,7 @@ def run_agent(user_prompt: str) -> str:
             + ". Check out a feature branch before running the agent."
         )
 
-    system_prompt = load_system_prompt(config.system_prompt_dir, config.system_prompt_file)
+    system_prompt = load_system_prompt(config.system_prompt)
 
     client = OpenAI(
         api_key=config.api_key or "unused",

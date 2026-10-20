@@ -1,0 +1,16 @@
+# RoboAgent run configuration.
+# Relative paths are resolved against this file's directory.
+# API key, endpoint and model live in .env (OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL).
+
+workdir = "./workspace"
+system_prompt = "./prompts/system.md"
+max_iterations = 20
+
+# The agent refuses to start if a repository in the workdir is on one of these branches.
+protected_branches = ["main"]
+
+# Tools run_command may execute (each runs as `python -m <tool>`).
+allowed_commands = ["pytest", "pip", "ruff"]
+
+# Optional: override OPENAI_MODEL from .env for this run profile.
+# model = "gpt-5.4"
