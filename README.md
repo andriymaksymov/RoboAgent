@@ -22,11 +22,12 @@ Because the API base URL is configurable, RoboAgent can work with hosted APIs as
 RoboAgent/
 ├── agent/
 │   ├── __init__.py              # Exposes run_agent
+│   ├── branch_guard.py          # Refuses to start on protected branches
 │   ├── config.py                # Environment-based configuration loading
 │   ├── runner.py                # Main agent loop and tool dispatch
 │   ├── system_prompt.py         # Loads the system prompt file
 │   └── core/
-│       ├── __init__.py          # Tool registry and tool schemas
+│       ├── __init__.py          # Tool definitions (schemas + handlers) registered in REGISTRY
 │       ├── content_search.py    # Grep-like content search in folders/subfolders
 │       ├── execute_python.py    # Executes Python in a subprocess
 │       ├── file_reader.py       # Reads files from AGENT_WORKDIR
@@ -39,7 +40,9 @@ RoboAgent/
 │       ├── git_diff.py          # Shows repository diffs
 │       ├── git_log.py           # Shows recent commit history
 │       ├── git_pull.py          # Pulls remote changes
+│       ├── git_restore.py       # Discards or unstages uncommitted changes
 │       ├── git_status.py        # Shows repository status
+│       ├── registry.py          # Tool dataclass and ToolRegistry
 │       └── utils.py             # Shared path resolution and git repository helpers
 ├── prompts/
 │   └── system.md                # System prompt used by the agent
@@ -64,6 +67,7 @@ Supported settings:
 - `AGENT_SYSTEM_PROMPT_DIR` (default: `./prompts`)
 - `AGENT_SYSTEM_PROMPT_FILE` (default: `system.md`)
 - `AGENT_MAX_ITERATIONS` (default: `20`)
+- `AGENT_PROTECTED_BRANCHES` (default: `main`) — comma-separated; the agent refuses to start if a repository in `AGENT_WORKDIR` (the workdir itself or a direct subfolder) is checked out on one of these branches
 
 The configured work directory and prompt directory are created automatically if they do not already exist.
 
@@ -72,11 +76,12 @@ The configured work directory and prompt directory are created automatically if 
 `agent/runner.py` contains the orchestration loop. It:
 
 1. loads configuration and the system prompt
-2. creates an `OpenAI` client
-3. sends the conversation and tool definitions to the model
-4. executes requested tools locally
-5. appends tool results back into the conversation
-6. repeats until the model returns a final answer or the iteration limit is reached
+2. refuses to start if a repository in `AGENT_WORKDIR` is on a protected branch (see `AGENT_PROTECTED_BRANCHES`)
+3. creates an `OpenAI` client
+4. sends the conversation and tool definitions to the model
+5. executes requested tools locally
+6. appends tool results back into the conversation
+7. repeats until the model returns a final answer or the iteration limit is reached
 
 The runner currently uses the Chat Completions API and keeps the interaction loop intentionally small and easy to inspect.
 
@@ -166,6 +171,7 @@ AGENT_WORKDIR=./workspace
 AGENT_SYSTEM_PROMPT_DIR=./prompts
 AGENT_SYSTEM_PROMPT_FILE=system.md
 AGENT_MAX_ITERATIONS=20
+AGENT_PROTECTED_BRANCHES=main
 ```
 
 ## Usage

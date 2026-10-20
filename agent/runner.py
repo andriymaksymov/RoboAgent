@@ -6,119 +6,29 @@ from openai import OpenAI
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 
+from .branch_guard import find_protected_branch_repos
 from .config import load_config
-from .core import (
-    TOOLS,
-    content_search,
-    execute_python,
-    file_search,
-    folder_content,
-    git_add,
-    git_commit,
-    git_diff,
-    git_log,
-    git_pull,
-    git_status,
-    read_file,
-    replace_in_file,
-    write_file,
-)
+from .core import REGISTRY
 from .system_prompt import load_system_prompt
 
 logger = logging.getLogger(__name__)
 
 
 def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
-    if tool_name == "execute_python":
-        logger.info("Running python...")
-        return execute_python(
-            arguments.get("code", ""), 
-            cwd=config.workdir
-        )
-    if tool_name == "read_file":
-        logger.info("Reading %s ...", arguments.get("path", ""))
-        return read_file(
-            arguments.get("path", ""), 
-            workdir=config.workdir
-        )
-    if tool_name == "write_file":
-        logger.info("Writing %s ...", arguments.get("path", ""))
-        return write_file(
-            arguments.get("path", ""),
-            arguments.get("content", ""),
-            workdir=config.workdir,
-        )
-    if tool_name == "replace_in_file":
-        logger.info("Replacing text in %s ...", arguments.get("path", ""))
-        return replace_in_file(
-            arguments.get("path", ""),
-            arguments.get("target_text", ""),
-            arguments.get("replacement_text", ""),
-            workdir=config.workdir,
-        )
-    if tool_name == "folder_content":
-        logger.info("Listing folder content %s...", arguments.get("path", ""))
-        return folder_content(
-            arguments.get("path", ""), 
-            workdir=config.workdir
-        )
-    if tool_name == "file_search":
-        logger.info("Searching files in %s ...", arguments.get("path", ""))
-        return file_search(
-            arguments.get("path", ""),
-            arguments.get("pattern", ""),
-            workdir=config.workdir,
-        )
-    if tool_name == "content_search":
-        logger.info("Content search in %s ...", arguments.get("path", ""))
-        return content_search(
-            arguments.get("path", ""),
-            arguments.get("query", ""),
-            workdir=config.workdir,
-            file_pattern=arguments.get("file_pattern"),
-        )
-    if tool_name == "git_pull":
-        logger.info("git pull %s ...", arguments.get("repo_path", ""))
-        return git_pull(
-            arguments.get("repo_path", ""),
-            workdir=config.workdir,
-        )
-    if tool_name == "git_status":
-        logger.info("git status %s ...", arguments.get("repo_path", ""))
-        return git_status(
-            arguments.get("repo_path", ""), 
-            workdir=config.workdir
-        )
-    if tool_name == "git_diff":
-        logger.info("git diff %s ...", arguments.get("repo_path", ""))
-        return git_diff(
-            arguments.get("repo_path", ""),
-            workdir=config.workdir,
-            rev=arguments.get("rev"),
-        )
-    if tool_name == "git_add":
-        logger.info("git add %s ...", arguments.get("repo_path", ""))
-        return git_add(
-            arguments.get("repo_path", ""),
-            arguments.get("pathspec", ""),
-            workdir=config.workdir,
-        )
-    if tool_name == "git_commit":
-        logger.info("git commit %s ...", arguments.get("repo_path", ""))
-        return git_commit(
-            arguments.get("repo_path", ""),
-            arguments.get("message", ""),
-            workdir=config.workdir,
-        )
-    if tool_name == "git_log":
-        logger.info("git log %s ...", arguments.get("repo_path", ""))
-        return git_log(
-            arguments.get("repo_path", ""),
-            workdir=config.workdir,
-            max_count=arguments.get("max_count", 10),
-        )
+    tool = REGISTRY.get(tool_name)
+    if tool is None:
+        return f"[Error]: Unknown tool '{tool_name}'."
 
-    return f"[Error]: Unknown tool '{tool_name}'."
+    if tool.log_arg:
+        logger.info("Running %s %s ...", tool_name, arguments.get(tool.log_arg, ""))
+    else:
+        logger.info("Running %s ...", tool_name)
+
+    try:
+        return tool.handler(arguments, config.workdir)
+    except Exception as exc:
+        logger.exception("Tool %s failed", tool_name)
+        return f"[Error]: Tool '{tool_name}' failed: {exc}"
 
 
 def _process_completion(message: ChatCompletionMessage, config, session):
@@ -168,6 +78,16 @@ def _process_completion(message: ChatCompletionMessage, config, session):
 
 def run_agent(user_prompt: str) -> str:
     config = load_config()
+
+    violations = find_protected_branch_repos(config.workdir, config.protected_branches)
+    if violations:
+        logger.error("Refusing to start: protected branch checked out (%s)", "; ".join(violations))
+        return (
+            "[Error]: Refusing to start. The following repositories are on a protected branch: "
+            + "; ".join(violations)
+            + ". Check out a feature branch before running the agent."
+        )
+
     system_prompt = load_system_prompt(config.system_prompt_dir, config.system_prompt_file)
 
     client = OpenAI(
@@ -186,7 +106,7 @@ def run_agent(user_prompt: str) -> str:
         response = client.chat.completions.create(
             model=config.model,
             messages=session,
-            tools=TOOLS,
+            tools=REGISTRY.schemas,
             temperature=0.1,
         )
 
