@@ -1,6 +1,6 @@
 # RoboAgent
 
-RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to an OpenAI-compatible chat API, exposes a focused set of local tools to the model, and lets the model inspect files, edit code, run Python, and perform basic Git operations inside a controlled working directory.
+RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to an OpenAI-compatible chat API, exposes a focused set of local tools to the model, and lets the model inspect files, edit code, run Python, search project trees, and perform basic Git operations inside a controlled working directory.
 
 ## Purpose
 
@@ -8,6 +8,7 @@ The project is a minimal foundation for an AI-assisted build agent that can:
 
 - accept a natural-language task
 - inspect project files and folders
+- search for files and matching content across subfolders
 - modify code and documentation
 - execute Python for validation
 - review and create Git changes
@@ -26,10 +27,12 @@ RoboAgent/
 │   ├── system_prompt.py         # Loads the system prompt file
 │   └── core/
 │       ├── __init__.py          # Tool registry and tool schemas
+│       ├── content_search.py    # Grep-like content search in folders/subfolders
 │       ├── execute_python.py    # Executes Python in a subprocess
 │       ├── file_reader.py       # Reads files from AGENT_WORKDIR
-│       ├── file_writer.py       # Writes files in AGENT_WORKDIR
 │       ├── file_replacer.py     # Replaces text in files
+│       ├── file_search.py       # Searches files by glob pattern
+│       ├── file_writer.py       # Writes files in AGENT_WORKDIR
 │       ├── folder_content.py    # Lists directory contents as JSON
 │       ├── git_add.py           # Stages files in a git repository
 │       ├── git_commit.py        # Creates git commits
@@ -88,6 +91,8 @@ Available tools:
 - `write_file(path, content)`
 - `replace_in_file(path, target_text, replacement_text)`
 - `folder_content(path)`
+- `file_search(path, pattern)`
+- `content_search(path, query, file_pattern=None)`
 - `git_pull(repo_path)`
 - `git_status(repo_path)`
 - `git_diff(repo_path, rev=None)`
@@ -97,11 +102,26 @@ Available tools:
 
 These tools are intentionally narrow in scope so the agent can inspect and modify a project while staying within the configured workspace.
 
+### Search Tools
+
+The new search tools are split into separate modules:
+
+- `file_search` searches for files recursively using gitignore-style glob patterns such as `*.py`, `**/*.md`, or `agent/core/*.py`.
+- `content_search` performs grep-like recursive content search and returns structured matches including file path, line number, line text, and submatch offsets.
+
+The implementation uses Python's standard library:
+
+- `pathlib.Path.rglob` for recursive traversal
+- `fnmatch` for glob-style file filtering
+- `re` for grep-like content matching
+
+This approach fits the lightweight build-agent workflow because it adds no extra runtime dependencies while still providing practical recursive file and content search.
+
 ### Path Safety and Git Helpers
 
 `agent/core/utils.py` centralizes path resolution and Git repository access. File and repository operations are constrained to `AGENT_WORKDIR` through `resolve_in_workdir`, which helps prevent accidental access outside the configured workspace.
 
-Git operations are implemented as separate modules and use `GitPython` under the hood. The available workflow now includes `git_pull`, allowing the agent to begin repository work by synchronizing with the remote before inspecting status or making changes.
+Git operations are implemented as separate modules and use `GitPython` under the hood. The available workflow includes `git_pull`, allowing the agent to begin repository work by synchronizing with the remote before inspecting status or making changes.
 
 ### Prompting
 
@@ -157,23 +177,6 @@ python main.py
 ```
 
 At present, `main.py` is best treated as a development or demo harness. A natural next step for the project would be adding a real CLI that accepts a prompt and optional configuration overrides.
-
-## Documentation Notes
-
-This README has been refreshed against the current repository state. Notable points:
-
-- the package name in `pyproject.toml` is `RoboAgent`
-- the default model is `gpt-5.4`
-- `AGENT_MAX_ITERATIONS` is part of the active configuration
-- Git support is integrated through dedicated tool modules, including `git_pull` for repository synchronization
-- the current entrypoint is a demo script, not a polished command-line interface
-
-## Observations
-
-- The project is intentionally lightweight and easy to inspect.
-- The codebase is organized around a small runner plus modular tool implementations.
-- There are no tests in the repository yet, although development dependencies include `pytest`.
-- The system prompt and runtime configuration are both file-based and easy to customize.
 
 ## Development
 

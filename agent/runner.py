@@ -9,7 +9,9 @@ from openai.types.chat.chat_completion_message_param import ChatCompletionMessag
 from .config import load_config
 from .core import (
     TOOLS,
+    content_search,
     execute_python,
+    file_search,
     folder_content,
     git_add,
     git_commit,
@@ -29,10 +31,16 @@ logger = logging.getLogger(__name__)
 def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
     if tool_name == "execute_python":
         logger.info("Running python...")
-        return execute_python(arguments.get("code", ""), cwd=config.workdir)
+        return execute_python(
+            arguments.get("code", ""), 
+            cwd=config.workdir
+        )
     if tool_name == "read_file":
         logger.info("Reading %s ...", arguments.get("path", ""))
-        return read_file(arguments.get("path", ""), workdir=config.workdir)
+        return read_file(
+            arguments.get("path", ""), 
+            workdir=config.workdir
+        )
     if tool_name == "write_file":
         logger.info("Writing %s ...", arguments.get("path", ""))
         return write_file(
@@ -53,6 +61,21 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
         return folder_content(
             arguments.get("path", ""), 
             workdir=config.workdir
+        )
+    if tool_name == "file_search":
+        logger.info("Searching files in %s ...", arguments.get("path", ""))
+        return file_search(
+            arguments.get("path", ""),
+            arguments.get("pattern", ""),
+            workdir=config.workdir,
+        )
+    if tool_name == "content_search":
+        logger.info("Content search in %s ...", arguments.get("path", ""))
+        return content_search(
+            arguments.get("path", ""),
+            arguments.get("query", ""),
+            workdir=config.workdir,
+            file_pattern=arguments.get("file_pattern"),
         )
     if tool_name == "git_pull":
         logger.info("git pull %s ...", arguments.get("repo_path", ""))
