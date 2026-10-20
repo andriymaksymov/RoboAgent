@@ -31,10 +31,16 @@ logger = logging.getLogger(__name__)
 def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
     if tool_name == "execute_python":
         logger.info("Running python...")
-        return execute_python(arguments.get("code", ""), cwd=config.workdir)
+        return execute_python(
+            arguments.get("code", ""), 
+            cwd=config.workdir
+        )
     if tool_name == "read_file":
         logger.info("Reading %s ...", arguments.get("path", ""))
-        return read_file(arguments.get("path", ""), workdir=config.workdir)
+        return read_file(
+            arguments.get("path", ""), 
+            workdir=config.workdir
+        )
     if tool_name == "write_file":
         logger.info("Writing %s ...", arguments.get("path", ""))
         return write_file(
@@ -52,7 +58,10 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
         )
     if tool_name == "folder_content":
         logger.info("Listing folder content %s...", arguments.get("path", ""))
-        return folder_content(arguments.get("path", ""), workdir=config.workdir)
+        return folder_content(
+            arguments.get("path", ""), 
+            workdir=config.workdir
+        )
     if tool_name == "file_search":
         logger.info("Searching files in %s ...", arguments.get("path", ""))
         return file_search(
@@ -61,7 +70,7 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
             workdir=config.workdir,
         )
     if tool_name == "content_search":
-        logger.info("Searching file contents in %s ...", arguments.get("path", ""))
+        logger.info("Content search in %s ...", arguments.get("path", ""))
         return content_search(
             arguments.get("path", ""),
             arguments.get("query", ""),
@@ -76,7 +85,10 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
         )
     if tool_name == "git_status":
         logger.info("git status %s ...", arguments.get("repo_path", ""))
-        return git_status(arguments.get("repo_path", ""), workdir=config.workdir)
+        return git_status(
+            arguments.get("repo_path", ""), 
+            workdir=config.workdir
+        )
     if tool_name == "git_diff":
         logger.info("git diff %s ...", arguments.get("repo_path", ""))
         return git_diff(
