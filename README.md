@@ -43,6 +43,7 @@ RoboAgent/
 │       ├── git_restore.py       # Discards or unstages uncommitted changes
 │       ├── git_status.py        # Shows repository status
 │       ├── registry.py          # Tool dataclass and ToolRegistry
+│       ├── run_command.py       # Runs allowed tools (pytest, pip, ruff)
 │       └── utils.py             # Shared path resolution and git repository helpers
 ├── prompts/
 │   └── system.md                # System prompt used by the agent
@@ -67,6 +68,7 @@ Supported settings:
 - `AGENT_SYSTEM_PROMPT_DIR` (default: `./prompts`)
 - `AGENT_SYSTEM_PROMPT_FILE` (default: `system.md`)
 - `AGENT_MAX_ITERATIONS` (default: `20`)
+- `AGENT_ALLOWED_COMMANDS` (default: `pytest,pip,ruff`) — comma-separated tools the `run_command` tool may execute; each runs as `python -m <tool>` with the agent's interpreter
 - `AGENT_PROTECTED_BRANCHES` (default: `main`) — comma-separated; the agent refuses to start if a repository in `AGENT_WORKDIR` (the workdir itself or a direct subfolder) is checked out on one of these branches
 
 The configured work directory and prompt directory are created automatically if they do not already exist.
@@ -172,6 +174,7 @@ AGENT_SYSTEM_PROMPT_DIR=./prompts
 AGENT_SYSTEM_PROMPT_FILE=system.md
 AGENT_MAX_ITERATIONS=20
 AGENT_PROTECTED_BRANCHES=main
+AGENT_ALLOWED_COMMANDS=pytest,pip,ruff
 ```
 
 ## Usage

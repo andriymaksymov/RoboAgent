@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Callable, Dict, Iterable
 
-ToolHandler = Callable[[Dict[str, Any], Path], str]
+from ..config import AgentConfig
+
+ToolHandler = Callable[[Dict[str, Any], AgentConfig], str]
 
 
 @dataclass(frozen=True)

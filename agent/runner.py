@@ -25,7 +25,7 @@ def _run_tool(tool_name: str, arguments: Dict[str, Any], config) -> str:
         logger.info("Running %s ...", tool_name)
 
     try:
-        return tool.handler(arguments, config.workdir)
+        return tool.handler(arguments, config)
     except Exception as exc:
         logger.exception("Tool %s failed", tool_name)
         return f"[Error]: Tool '{tool_name}' failed: {exc}"

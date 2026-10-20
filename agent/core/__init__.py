@@ -13,6 +13,7 @@ from .git_pull import git_pull
 from .git_restore import git_restore
 from .git_status import git_status
 from .registry import Tool, ToolRegistry
+from .run_command import run_command
 
 _STRING = {"type": "string"}
 _REPO_PATH = {"repo_path": _STRING}
@@ -24,7 +25,30 @@ REGISTRY = ToolRegistry(
             description="Execute Python code in a subprocess.",
             properties={"code": _STRING},
             required=("code",),
-            handler=lambda args, workdir: execute_python(args.get("code", ""), cwd=workdir),
+            handler=lambda args, config: execute_python(args.get("code", ""), cwd=config.workdir),
+        ),
+        Tool(
+            name="run_command",
+            description=(
+                "Run an allowed developer tool (e.g. pytest, pip, ruff) in AGENT_WORKDIR without a "
+                "shell. Pass the command as a list of arguments, e.g. [\"pytest\", \"-q\"] or "
+                "[\"ruff\", \"check\", \".\"]. Returns the exit code, stdout and stderr. "
+                "Optional cwd (relative to AGENT_WORKDIR) and timeout in seconds (max 600)."
+            ),
+            properties={
+                "command": {"type": "array", "items": _STRING},
+                "cwd": _STRING,
+                "timeout": {"type": "integer"},
+            },
+            required=("command",),
+            log_arg="command",
+            handler=lambda args, config: run_command(
+                args.get("command", []),
+                workdir=config.workdir,
+                allowed_commands=config.allowed_commands,
+                cwd=args.get("cwd", "."),
+                timeout=args.get("timeout"),
+            ),
         ),
         Tool(
             name="read_file",
@@ -32,7 +56,7 @@ REGISTRY = ToolRegistry(
             properties={"path": _STRING},
             required=("path",),
             log_arg="path",
-            handler=lambda args, workdir: read_file(args.get("path", ""), workdir=workdir),
+            handler=lambda args, config: read_file(args.get("path", ""), workdir=config.workdir),
         ),
         Tool(
             name="write_file",
@@ -40,10 +64,10 @@ REGISTRY = ToolRegistry(
             properties={"path": _STRING, "content": _STRING},
             required=("path", "content"),
             log_arg="path",
-            handler=lambda args, workdir: write_file(
+            handler=lambda args, config: write_file(
                 args.get("path", ""),
                 args.get("content", ""),
-                workdir=workdir,
+                workdir=config.workdir,
             ),
         ),
         Tool(
@@ -52,11 +76,11 @@ REGISTRY = ToolRegistry(
             properties={"path": _STRING, "target_text": _STRING, "replacement_text": _STRING},
             required=("path", "target_text", "replacement_text"),
             log_arg="path",
-            handler=lambda args, workdir: replace_in_file(
+            handler=lambda args, config: replace_in_file(
                 args.get("path", ""),
                 args.get("target_text", ""),
                 args.get("replacement_text", ""),
-                workdir=workdir,
+                workdir=config.workdir,
             ),
         ),
         Tool(
@@ -68,7 +92,7 @@ REGISTRY = ToolRegistry(
             properties={"path": _STRING},
             required=("path",),
             log_arg="path",
-            handler=lambda args, workdir: folder_content(args.get("path", ""), workdir=workdir),
+            handler=lambda args, config: folder_content(args.get("path", ""), workdir=config.workdir),
         ),
         Tool(
             name="file_search",
@@ -79,10 +103,10 @@ REGISTRY = ToolRegistry(
             properties={"path": _STRING, "pattern": _STRING},
             required=("path", "pattern"),
             log_arg="path",
-            handler=lambda args, workdir: file_search(
+            handler=lambda args, config: file_search(
                 args.get("path", ""),
                 args.get("pattern", ""),
-                workdir=workdir,
+                workdir=config.workdir,
             ),
         ),
         Tool(
@@ -94,10 +118,10 @@ REGISTRY = ToolRegistry(
             properties={"path": _STRING, "query": _STRING, "file_pattern": _STRING},
             required=("path", "query"),
             log_arg="path",
-            handler=lambda args, workdir: content_search(
+            handler=lambda args, config: content_search(
                 args.get("path", ""),
                 args.get("query", ""),
-                workdir=workdir,
+                workdir=config.workdir,
                 file_pattern=args.get("file_pattern"),
             ),
         ),
@@ -107,7 +131,7 @@ REGISTRY = ToolRegistry(
             properties=_REPO_PATH,
             required=("repo_path",),
             log_arg="repo_path",
-            handler=lambda args, workdir: git_pull(args.get("repo_path", ""), workdir=workdir),
+            handler=lambda args, config: git_pull(args.get("repo_path", ""), workdir=config.workdir),
         ),
         Tool(
             name="git_status",
@@ -115,7 +139,7 @@ REGISTRY = ToolRegistry(
             properties=_REPO_PATH,
             required=("repo_path",),
             log_arg="repo_path",
-            handler=lambda args, workdir: git_status(args.get("repo_path", ""), workdir=workdir),
+            handler=lambda args, config: git_status(args.get("repo_path", ""), workdir=config.workdir),
         ),
         Tool(
             name="git_diff",
@@ -123,9 +147,9 @@ REGISTRY = ToolRegistry(
             properties={**_REPO_PATH, "rev": _STRING},
             required=("repo_path",),
             log_arg="repo_path",
-            handler=lambda args, workdir: git_diff(
+            handler=lambda args, config: git_diff(
                 args.get("repo_path", ""),
-                workdir=workdir,
+                workdir=config.workdir,
                 rev=args.get("rev"),
             ),
         ),
@@ -135,10 +159,10 @@ REGISTRY = ToolRegistry(
             properties={**_REPO_PATH, "pathspec": _STRING},
             required=("repo_path", "pathspec"),
             log_arg="repo_path",
-            handler=lambda args, workdir: git_add(
+            handler=lambda args, config: git_add(
                 args.get("repo_path", ""),
                 args.get("pathspec", ""),
-                workdir=workdir,
+                workdir=config.workdir,
             ),
         ),
         Tool(
@@ -159,10 +183,10 @@ REGISTRY = ToolRegistry(
             },
             required=("repo_path", "pathspec"),
             log_arg="repo_path",
-            handler=lambda args, workdir: git_restore(
+            handler=lambda args, config: git_restore(
                 args.get("repo_path", ""),
                 args.get("pathspec", ""),
-                workdir=workdir,
+                workdir=config.workdir,
                 staged=bool(args.get("staged", False)),
                 source=args.get("source"),
             ),
@@ -173,10 +197,10 @@ REGISTRY = ToolRegistry(
             properties={**_REPO_PATH, "message": _STRING},
             required=("repo_path", "message"),
             log_arg="repo_path",
-            handler=lambda args, workdir: git_commit(
+            handler=lambda args, config: git_commit(
                 args.get("repo_path", ""),
                 args.get("message", ""),
-                workdir=workdir,
+                workdir=config.workdir,
             ),
         ),
         Tool(
@@ -185,9 +209,9 @@ REGISTRY = ToolRegistry(
             properties={**_REPO_PATH, "max_count": {"type": "integer"}},
             required=("repo_path",),
             log_arg="repo_path",
-            handler=lambda args, workdir: git_log(
+            handler=lambda args, config: git_log(
                 args.get("repo_path", ""),
-                workdir=workdir,
+                workdir=config.workdir,
                 max_count=args.get("max_count", 10),
             ),
         ),
@@ -215,4 +239,5 @@ __all__ = [
     "git_restore",
     "git_commit",
     "git_log",
+    "run_command",
 ]
