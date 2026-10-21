@@ -17,4 +17,4 @@ protected_branches = ["main"]
 allowed_commands = ["pytest", "pip", "ruff"]
 
 # Optional: override the provider's model (preset / LLM_*_MODEL) for this run profile.
-# model = "claude-opus-4-6"
+
