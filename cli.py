@@ -11,7 +11,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="roboagent",
         description="Run the RoboAgent build agent on a task. "
-        "API key, endpoint and model are read from the environment / .env.",
+        "The LLM provider is selected in the config file; API key, endpoint and model "
+        "come from the provider preset and LLM_* variables in the environment / .env.",
     )
     parser.add_argument(
         "-p",
@@ -24,7 +25,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "-c",
         "--config",
         type=Path,
-        help="TOML config file with run settings (workdir, system prompt, ...). "
+        help="TOML config file with run settings (provider, workdir, system prompt, ...). "
         "Defaults are used if omitted.",
     )
     parser.add_argument(
@@ -43,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     # Keep third-party debug noise (HTTP, git) out of verbose agent logs.
-    for noisy in ("httpx", "httpcore", "openai", "git"):
+    for noisy in ("httpx", "httpcore", "openai", "anthropic", "google_genai", "git"):
         logging.getLogger(noisy).setLevel(logging.INFO if args.verbose else logging.WARNING)
     logger = logging.getLogger("roboagent")
 
@@ -54,7 +55,13 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("%s", exc)
         return 2
 
-    logger.info("Config: %s | workdir: %s | model: %s", args.config or "defaults", config.workdir, config.model)
+    logger.info(
+        "Config: %s | workdir: %s | provider: %s | model: %s",
+        args.config or "defaults",
+        config.workdir,
+        config.provider,
+        config.model,
+    )
     logger.info("---\nStarting task:\n%s\n---", prompt)
     final_response = run_agent(prompt, config)
     logger.info("[Agent Final Response]:\n%s", final_response)

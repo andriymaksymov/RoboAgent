@@ -1,6 +1,10 @@
 # RoboAgent run configuration.
 # Relative paths are resolved against this file's directory.
-# API key, endpoint and model live in .env (OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL).
+# API keys, endpoints and models live in .env (LLM_* variables, see .env.example).
+
+# LLM provider: "openai", "anthropic", "gemini" or "local" (OpenAI-compatible server).
+# Each provider has a predefined API key variable, endpoint and model.
+provider = "anthropic"
 
 workdir = "./workspace"
 system_prompt = "./prompts/system.md"
@@ -12,5 +16,5 @@ protected_branches = ["main"]
 # Tools run_command may execute (each runs as `python -m <tool>`).
 allowed_commands = ["pytest", "pip", "ruff"]
 
-# Optional: override OPENAI_MODEL from .env for this run profile.
-# model = "gpt-5.4"
+# Optional: override the provider's model (preset / LLM_*_MODEL) for this run profile.
+# model = "claude-opus-4-6"

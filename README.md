@@ -1,6 +1,6 @@
 # RoboAgent
 
-RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to an OpenAI-compatible chat API, exposes a focused set of local tools to the model, and lets the model inspect files, edit code, run Python, search project trees, and perform basic Git operations inside a controlled working directory.
+RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to a switchable LLM provider (OpenAI, Anthropic Claude, Google Gemini or a local OpenAI-compatible server), exposes a focused set of local tools to the model, and lets the model inspect files, edit code, run Python, search project trees, and perform basic Git operations inside a controlled working directory.
 
 ## Purpose
 
@@ -14,7 +14,7 @@ The project is a minimal foundation for an AI-assisted build agent that can:
 - review and create Git changes
 - iterate until it produces a final response
 
-Because the API base URL is configurable, RoboAgent can work with hosted APIs as well as local or self-hosted OpenAI-compatible endpoints.
+The provider is selected with one setting in the run config. Each provider uses its native API, so features such as reasoning, thinking and prompt caching work as intended.
 
 ## Repository Structure
 
@@ -23,9 +23,17 @@ RoboAgent/
 ├── agent/
 │   ├── __init__.py              # Exposes run_agent
 │   ├── branch_guard.py          # Refuses to start on protected branches
-│   ├── config.py                # Loads .env (API settings) and the TOML run config
+│   ├── config.py                # Loads .env (LLM_* settings) and the TOML run config
 │   ├── runner.py                # Main agent loop and tool dispatch
 │   ├── system_prompt.py         # Loads the system prompt file
+│   ├── llm/
+│   │   ├── __init__.py          # create_client(): picks the backend for the provider
+│   │   ├── base.py              # LLMClient interface, ToolSpec/ToolCall/ToolResult/LLMResponse
+│   │   ├── presets.py           # Provider presets (model, endpoint) and LLM_* resolution
+│   │   ├── openai_client.py     # OpenAI Responses API
+│   │   ├── claude_client.py     # Anthropic Messages API
+│   │   ├── gemini_client.py     # Google Gemini (google-genai)
+│   │   └── local_client.py      # OpenAI-compatible Chat Completions (vLLM, Ollama, ...)
 │   └── core/
 │       ├── __init__.py          # Imports the built-in tool modules (registers them)
 │       ├── content_search.py    # Grep-like content search in folders/subfolders
@@ -60,17 +68,37 @@ RoboAgent/
 
 Configuration is split in two:
 
-- **`.env`**: general settings only, loaded with `python-dotenv`:
-  - `OPENAI_API_KEY`
-  - `OPENAI_BASE_URL` (default: `http://localhost:8000/v1`)
-  - `OPENAI_MODEL` (default: `gpt-5.4`)
+- **`.env`**: LLM API settings, loaded with `python-dotenv`. Each setting is looked up as `LLM_<PROVIDER>_<KEY>`, then `LLM_<KEY>`, then the provider preset:
+  - `LLM_API_KEY` / `LLM_<PROVIDER>_API_KEY`. If neither is set, the SDK falls back to its own variable (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`).
+  - `LLM_BASE_URL` / `LLM_<PROVIDER>_BASE_URL`
+  - `LLM_MODEL` / `LLM_<PROVIDER>_MODEL`
 - **TOML run config** (passed with `--config`, see [`roboagent.toml`](roboagent.toml)): per-run settings. Relative paths are resolved against the config file's directory. Without a config file, the defaults apply relative to the current directory. Unknown keys are rejected.
+  - `provider` (default: `openai`): `openai`, `claude`, `gemini` or `local`, see [LLM Providers](#llm-providers)
   - `workdir` (default: `./workspace`): the only directory the tools may access; it is created if missing
   - `system_prompt` (default: `./prompts/system.md`)
   - `max_iterations` (default: `20`)
   - `protected_branches` (default: `["main"]`): the agent refuses to start if a repository in the workdir (the workdir itself or a direct subfolder) is on one of these branches
   - `allowed_commands` (default: `["pytest", "pip", "ruff"]`): tools `run_command` may execute; each runs as `python -m <tool>` with the agent's interpreter
-  - `model` (optional): overrides `OPENAI_MODEL` for this run
+  - `model` (optional): overrides the provider's model (`LLM_*_MODEL` or preset) for this run
+
+### LLM Providers
+
+`agent/llm/` hides the provider behind one small interface, `LLMClient`:
+
+- `start(system_prompt, user_prompt, tools)` begins a conversation
+- `complete()` returns an `LLMResponse` (text plus `ToolCall`s)
+- `add_tool_results(results)` sends the tool outputs back
+
+Each backend keeps the conversation in its provider's native format. Provider-specific state (reasoning items, thinking blocks, thought signatures) is returned to the model unchanged.
+
+| `provider` | API | Preset model | Preset endpoint | Notes |
+|---|---|---|---|---|
+| `openai` | Responses API | `gpt-5.4` | SDK default | stateless (`store=False`), encrypted reasoning passed back between turns, `reasoning.effort="medium"` |
+| `claude` | Messages API | `claude-sonnet-4-6` | SDK default | adaptive thinking, automatic prompt caching, `is_error` on failed tool results |
+| `gemini` | `google-genai` | `gemini-2.5-pro` | SDK default | `system_instruction`, raw JSON schemas, automatic function calling disabled, thought signatures preserved |
+| `local` | Chat Completions | none (set `LLM_LOCAL_MODEL` or `model`) | `http://localhost:8000/v1` | any OpenAI-compatible server (vLLM, Ollama, llama.cpp, LM Studio), `temperature=0.1` |
+
+Tuning knobs such as `reasoning_effort`, `max_tokens`, `thinking` or `temperature` are class attributes of each backend. To add a provider, implement `LLMClient` in a new module and register a `ProviderPreset` in `agent/llm/presets.py`. Provider SDKs are imported only when their provider is selected.
 
 ### Agent Runner
 
@@ -78,13 +106,13 @@ Configuration is split in two:
 
 1. loads configuration and the system prompt
 2. refuses to start if a repository in the workdir is on a protected branch (see `protected_branches`)
-3. creates an `OpenAI` client
+3. creates the `LLMClient` for the configured provider (`agent.llm.create_client`)
 4. sends the conversation and tool definitions to the model
 5. executes requested tools locally
 6. appends tool results back into the conversation
 7. repeats until the model returns a final answer or the iteration limit is reached
 
-The runner currently uses the Chat Completions API and keeps the interaction loop intentionally small and easy to inspect.
+The runner is provider-neutral. API failures are returned as `[Error]: ...` (CLI exit code `1`).
 
 ### Tool Registry and Local Tools
 
@@ -173,7 +201,7 @@ The system prompt lives in `prompts/system.md`. It instructs the model to inspec
 ### Prerequisites
 
 - Python 3.11+
-- access to an OpenAI-compatible API endpoint
+- an API key for OpenAI, Anthropic or Google Gemini, or a local OpenAI-compatible server
 
 ### Installation
 
@@ -196,14 +224,17 @@ pip install -e ".[dev]"
 Create a `.env` file in the project root (see `.env.example`):
 
 ```env
-OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=http://localhost:8000/v1
-OPENAI_MODEL=gpt-5.4
+LLM_CLAUDE_API_KEY=your_anthropic_key_here
+LLM_OPENAI_API_KEY=your_openai_key_here
+LLM_GEMINI_API_KEY=your_gemini_key_here
+LLM_LOCAL_BASE_URL=http://localhost:8000/v1
+LLM_LOCAL_MODEL=your-local-model
 ```
 
 Run settings go in a TOML file such as [`roboagent.toml`](roboagent.toml):
 
 ```toml
+provider = "claude"   # "openai" | "claude" | "gemini" | "local"
 workdir = "./workspace"
 system_prompt = "./prompts/system.md"
 max_iterations = 20
