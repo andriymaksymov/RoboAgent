@@ -1,12 +1,12 @@
 """Agent configuration.
 
-General settings (API key, endpoint, model) come from the environment / ``.env``.
+LLM settings (API key, endpoint, model) come from the environment / ``.env`` (``LLM_*``
+variables) on top of the preset of the selected ``provider``, see ``agent.llm.presets``.
 Run settings come from an optional TOML config file; relative paths in it are resolved
 against the config file's directory. Without a config file the defaults below apply,
 relative to the current directory.
 """
 
-import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,7 +14,11 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from .llm.base import LLMSettings
+from .llm.presets import DEFAULT_PROVIDER, resolve_settings
+
 DEFAULTS: dict[str, Any] = {
+    "provider": DEFAULT_PROVIDER,
     "workdir": "./workspace",
     "system_prompt": "./prompts/system.md",
     "max_iterations": 20,
@@ -25,14 +29,20 @@ DEFAULTS: dict[str, Any] = {
 
 @dataclass(frozen=True)
 class AgentConfig:
-    api_key: str
-    base_url: str
-    model: str
+    llm: LLMSettings
     workdir: Path
     system_prompt: Path
     max_iterations: int
     protected_branches: tuple[str, ...]
     allowed_commands: tuple[str, ...]
+
+    @property
+    def provider(self) -> str:
+        return self.llm.provider
+
+    @property
+    def model(self) -> str:
+        return self.llm.model
 
 
 def _read_config_file(config_file: Path) -> dict[str, Any]:
@@ -69,13 +79,19 @@ def load_config(config_file: Path | None = None) -> AgentConfig:
     if not isinstance(max_iterations, int) or max_iterations <= 0:
         raise ValueError("'max_iterations' must be a positive integer")
 
+    provider = settings["provider"]
+    if not isinstance(provider, str):
+        raise ValueError("'provider' must be a string")  # noqa: TRY004 - CLI reports ValueError
+    model = settings.get("model")
+    if model is not None and not isinstance(model, str):
+        raise ValueError("'model' must be a string")
+    llm = resolve_settings(provider.strip().lower(), model or None)
+
     workdir = (base_dir / settings["workdir"]).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
 
     return AgentConfig(
-        api_key=os.getenv("OPENAI_API_KEY", ""),
-        base_url=os.getenv("OPENAI_BASE_URL", "http://localhost:8000/v1"),
-        model=settings.get("model") or os.getenv("OPENAI_MODEL", "gpt-5.4"),
+        llm=llm,
         workdir=workdir,
         system_prompt=(base_dir / settings["system_prompt"]).resolve(),
         max_iterations=max_iterations,
