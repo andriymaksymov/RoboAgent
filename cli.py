@@ -72,9 +72,11 @@ def main(argv: list[str] | None = None) -> int:
 
     final_response = run_agent(prompt, config, client=client)
     token_usage = client.token_usage
+    
+    logger.info("---")
     logger.info("[Agent Final Response]:\n%s", final_response)
     logger.info(
-        "Token usage (sum of API calls): input=%s, output=%s",
+        "[Token usage]:\ninput=%d, output=.%d",
         token_usage.input_tokens,
         token_usage.output_tokens,
     )
