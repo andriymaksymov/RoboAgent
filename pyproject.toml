@@ -36,6 +36,11 @@ target-version = ['py311', 'py312']
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Projects built by the agent live in workspace/; they are not part of the agent's code.
+extend-exclude = ["workspace"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
 
 [tool.mypy]
 python_version = "3.11"

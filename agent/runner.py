@@ -1,5 +1,6 @@
 import logging
 
+from . import plugin as _plugin  # noqa: F401  side-effect: registers all plugin tools
 from .branch_guard import find_protected_branch_repos
 from .config import AgentConfig, load_config
 from .core import REGISTRY
@@ -16,7 +17,8 @@ def run_agent(
 ) -> str:
     config = config or load_config()
 
-    violations = find_protected_branch_repos(config.workdir, config.protected_branches)
+    extra_dirs = [config.agent_dir] if config.agent_dir else []
+    violations = find_protected_branch_repos(config.workdir, config.protected_branches, extra_dirs)
     if violations:
         logger.error("Refusing to start: protected branch checked out (%s)", "; ".join(violations))
         return (

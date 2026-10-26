@@ -39,7 +39,7 @@ PROVIDERS: dict[str, ProviderPreset] = {
     )
 }
 
-DEFAULT_PROVIDER = "claude"
+DEFAULT_PROVIDER = "anthropic"
 
 
 def _env(env: Mapping[str, str], provider: str, key: str) -> str | None:

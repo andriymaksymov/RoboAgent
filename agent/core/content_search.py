@@ -11,7 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def content_search(path: str, query: str, workdir: Path, file_pattern: str | None = None) -> str:
+def content_search(
+    path: str,
+    query: str,
+    workdir: Path,
+    agent_dir: Path | None,
+    file_pattern: str | None = None,
+) -> str:
     """Search file contents under a folder and its subfolders, similar to grep. Optionally filter searched files with a gitignore-style glob pattern.
 
     Args:
@@ -19,7 +25,7 @@ def content_search(path: str, query: str, workdir: Path, file_pattern: str | Non
         query: Python regular expression to search for.
         file_pattern: Optional glob pattern limiting which files are searched, e.g. '*.py'.
     """
-    root = resolve_dir(workdir, path)
+    root = resolve_dir(workdir, path, agent_dir)
     try:
         pattern = re.compile(query)
     except re.error as exc:

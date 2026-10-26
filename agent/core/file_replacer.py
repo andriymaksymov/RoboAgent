@@ -5,7 +5,9 @@ from .utils import resolve_in_workdir
 
 
 @tool
-def replace_in_file(path: str, target_text: str, replacement_text: str, workdir: Path) -> str:
+def replace_in_file(
+    path: str, target_text: str, replacement_text: str, workdir: Path, agent_dir: Path | None
+) -> str:
     """Replace the first matching text block in a file in the workdir.
 
     Args:
@@ -13,7 +15,7 @@ def replace_in_file(path: str, target_text: str, replacement_text: str, workdir:
         target_text: Exact text to replace.
         replacement_text: Text to insert instead.
     """
-    full_path = resolve_in_workdir(workdir, path)
+    full_path = resolve_in_workdir(workdir, path, agent_dir)
     if not full_path.exists():
         raise ToolError(f"'{full_path}' does not exist.")
 

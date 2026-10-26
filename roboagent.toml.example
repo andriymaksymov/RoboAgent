@@ -6,7 +6,11 @@
 # Each provider has a predefined API key variable, endpoint and model.
 provider = "anthropic"
 
-workdir = "./workspace"
+workdir = "../workspace"
+
+# Optional: the agent's own repository. Tools reach it as '@agent/...', so the agent can
+# improve itself while building the project in workdir. Omit it to disable self-improvement.
+agent_dir = "."
 system_prompt = "./prompts/system.md"
 max_iterations = 20
 
