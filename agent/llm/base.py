@@ -80,7 +80,8 @@ class LLMClient(ABC):
     """A single agent conversation with a model.
 
     Usage: ``start()`` once, then alternate ``complete()`` and ``add_tool_results()``
-    until ``complete()`` returns a response without tool calls.
+    until ``complete()`` returns a response without tool calls. ``set_tools()`` may be
+    called between turns to change the tools offered from the next request on.
     """
 
     def __init__(self, settings: LLMSettings) -> None:
@@ -104,6 +105,10 @@ class LLMClient(ABC):
     @abstractmethod
     def start(self, system_prompt: str, user_prompt: str, tools: Sequence[ToolSpec]) -> None:
         """Reset the conversation with a system prompt, the task and the available tools."""
+
+    @abstractmethod
+    def set_tools(self, tools: Sequence[ToolSpec]) -> None:
+        """Replace the tools offered to the model; the conversation is kept."""
 
     def complete(self) -> LLMResponse:
         """Send the conversation, record the model's turn in it and return that turn."""

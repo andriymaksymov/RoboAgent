@@ -24,8 +24,9 @@ import logging
 import re
 import types
 import typing
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable
+from typing import Any, Callable, Dict, Iterable, Iterator
 
 from ..config import AgentConfig
 
@@ -99,13 +100,32 @@ class Tool:
 class ToolRegistry:
     def __init__(self, tools: Iterable[Tool] = ()) -> None:
         self._tools: Dict[str, Tool] = {}
+        self._captured: list[Tool] | None = None
         for item in tools:
             self.register(item)
 
     def register(self, item: Tool) -> None:
+        if self._captured is not None:
+            self._captured.append(item)
+            return
         if item.name in self._tools:
             raise ValueError(f"Tool '{item.name}' is already registered")
         self._tools[item.name] = item
+
+    def unregister(self, name: str) -> None:
+        self._tools.pop(name, None)
+
+    @contextmanager
+    def capture(self) -> Iterator[list[Tool]]:
+        """Collect registrations into a list instead of registering them.
+
+        Lets the plugin loader validate a module's tools before they become visible.
+        """
+        previous, self._captured = self._captured, []
+        try:
+            yield self._captured
+        finally:
+            self._captured = previous
 
     def get(self, name: str) -> Tool | None:
         return self._tools.get(name)

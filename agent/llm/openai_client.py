@@ -43,6 +43,9 @@ class OpenAIClient(LLMClient):
     def start(self, system_prompt: str, user_prompt: str, tools: Sequence[ToolSpec]) -> None:
         self._instructions = system_prompt
         self._input = [{"role": "user", "content": user_prompt}]
+        self.set_tools(tools)
+
+    def set_tools(self, tools: Sequence[ToolSpec]) -> None:
         self._tools = [
             {
                 "type": "function",

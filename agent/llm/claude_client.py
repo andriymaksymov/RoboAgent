@@ -41,6 +41,9 @@ class ClaudeClient(LLMClient):
     def start(self, system_prompt: str, user_prompt: str, tools: Sequence[ToolSpec]) -> None:
         self._system = system_prompt
         self._messages = [{"role": "user", "content": user_prompt}]
+        self.set_tools(tools)
+
+    def set_tools(self, tools: Sequence[ToolSpec]) -> None:
         self._tools = [
             {"name": spec.name, "description": spec.description, "input_schema": spec.parameters}
             for spec in tools

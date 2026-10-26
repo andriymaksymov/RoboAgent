@@ -38,6 +38,19 @@ class GeminiClient(LLMClient):
     def start(self, system_prompt: str, user_prompt: str, tools: Sequence[ToolSpec]) -> None:
         self._contents = [types.Content(role="user", parts=[types.Part(text=user_prompt)])]
         self._local_ids = set()
+        options: dict[str, Any] = {}
+        if self.temperature is not None:
+            options["temperature"] = self.temperature
+        if self.thinking_config is not None:
+            options["thinking_config"] = self.thinking_config
+        self._config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            **options,
+        )
+        self.set_tools(tools)
+
+    def set_tools(self, tools: Sequence[ToolSpec]) -> None:
         declarations = [
             types.FunctionDeclaration(
                 name=spec.name,
@@ -46,16 +59,8 @@ class GeminiClient(LLMClient):
             )
             for spec in tools
         ]
-        options: dict[str, Any] = {}
-        if self.temperature is not None:
-            options["temperature"] = self.temperature
-        if self.thinking_config is not None:
-            options["thinking_config"] = self.thinking_config
-        self._config = types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            tools=[types.Tool(function_declarations=declarations)],
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            **options,
+        self._config = self._config.model_copy(
+            update={"tools": [types.Tool(function_declarations=declarations)]}
         )
 
     def _complete(self) -> LLMResponse:
