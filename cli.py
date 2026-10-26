@@ -5,6 +5,7 @@ from pathlib import Path
 
 from agent import run_agent
 from agent.config import load_config
+from agent.llm import LLMError, create_client
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -63,8 +64,27 @@ def main(argv: list[str] | None = None) -> int:
         config.model,
     )
     logger.info("---\nStarting task:\n%s\n---", prompt)
-    final_response = run_agent(prompt, config)
+    try:
+        client = create_client(config.llm)
+    except (LLMError, ValueError) as exc:
+        logger.error("%s", exc)
+        return 1
+
+    final_response = run_agent(prompt, config, client=client)
+    token_usage = client.token_usage
     logger.info("[Agent Final Response]:\n%s", final_response)
+    logger.info(
+        "Token usage (sum of API calls): input=%s, output=%s",
+        token_usage.input_tokens,
+        token_usage.output_tokens,
+    )
+
+    try:
+        args.prompt_file.write_text(final_response, encoding="utf-8")
+    except OSError as exc:
+        logger.error("Could not write final output to prompt file '%s': %s", args.prompt_file, exc)
+        return 1
+
     return 1 if final_response.startswith("[Error]") else 0
 
 
