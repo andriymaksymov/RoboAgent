@@ -1,5 +1,6 @@
 import logging
 
+from . import plugin as _plugin  # noqa: F401  side-effect: registers all plugin tools
 from .branch_guard import find_protected_branch_repos
 from .config import AgentConfig, load_config
 from .core import REGISTRY
