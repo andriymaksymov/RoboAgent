@@ -21,7 +21,7 @@ import uuid
 
 import pytest
 
-from code_memory import CodeMemory, Snippet
+from agent.code_memory import CodeMemory, Snippet
 
 
 def _unique_mem() -> CodeMemory:
