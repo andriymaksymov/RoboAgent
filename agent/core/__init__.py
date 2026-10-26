@@ -15,6 +15,7 @@ from .git_add import git_add
 from .git_commit import git_commit
 from .git_diff import git_diff
 from .git_log import git_log
+from .git_ls_files import git_ls_files
 from .git_pull import git_pull
 from .git_restore import git_restore
 from .git_status import git_status
@@ -29,20 +30,21 @@ __all__ = [
     "Tool",
     "ToolError",
     "ToolRegistry",
-    "tool",
     "content_search",
     "execute_python",
+    "file_search",
+    "folder_content",
+    "git_add",
+    "git_commit",
+    "git_diff",
+    "git_log",
+    "git_ls_files",
+    "git_pull",
+    "git_restore",
+    "git_status",
     "read_file",
     "replace_in_file",
-    "file_search",
-    "write_file",
-    "folder_content",
-    "git_pull",
-    "git_status",
-    "git_diff",
-    "git_add",
-    "git_restore",
-    "git_commit",
-    "git_log",
     "run_command",
+    "tool",
+    "write_file",
 ]
