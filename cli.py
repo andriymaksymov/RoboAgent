@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        args.prompt_file.append_text("\n\n---\n\n", encoding="utf-8")
+        args.prompt_file.append_text("\n\n---\n[Agent Final Response]:\n", encoding="utf-8")
         args.prompt_file.append_text(final_response, encoding="utf-8")
     except OSError as exc:
         logger.error("Could not write final output to prompt file '%s': %s", args.prompt_file, exc)
