@@ -75,8 +75,9 @@ def main(argv: list[str] | None = None) -> int:
     
     logger.info("---")
     logger.info("[Agent Final Response]:\n%s", final_response)
+    
     logger.info(
-        "[Token usage]:\ninput=%d, output=_%d",
+        "[Token usage]:\ninput=%d, output=%d",
         token_usage.input_tokens,
         token_usage.output_tokens,
     )
