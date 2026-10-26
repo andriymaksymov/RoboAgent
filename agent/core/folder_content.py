@@ -7,14 +7,14 @@ from .utils import resolve_dir
 
 
 @tool
-def folder_content(path: str, workdir: Path) -> str:
+def folder_content(path: str, workdir: Path, agent_dir: Path | None) -> str:
     """Return a list of all files and directories in the specified path with their names, sizes, and types. Ignore hidden files and directories.
 
     Args:
         path: Directory path relative to the workdir.
     """
     contents = []
-    with os.scandir(resolve_dir(workdir, path)) as entries:
+    with os.scandir(resolve_dir(workdir, path, agent_dir)) as entries:
         for entry in entries:
             if entry.name.startswith("."):
                 continue

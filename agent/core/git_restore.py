@@ -9,6 +9,7 @@ def git_restore(
     repo_path: str,
     pathspec: str,
     workdir: Path,
+    agent_dir: Path | None,
     staged: bool = False,
     source: str | None = None,
 ) -> str:
@@ -20,8 +21,8 @@ def git_restore(
         staged: Only restore the index (unstage) and keep working tree changes.
         source: Revision to restore from, e.g. 'HEAD'.
     """
-    repo = open_repo(workdir, repo_path)
-    resolved_repo = resolve_in_workdir(workdir, repo_path)
+    repo = open_repo(workdir, repo_path, agent_dir)
+    resolved_repo = resolve_in_workdir(workdir, repo_path, agent_dir)
     resolved_target = resolve_in_workdir(resolved_repo, pathspec)
     relative_target = resolved_target.relative_to(resolved_repo).as_posix()
 

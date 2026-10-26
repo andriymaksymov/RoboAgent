@@ -28,6 +28,7 @@ def _strip_python_module_prefix(command: list[str]) -> list[str]:
 def run_command(
     command: list[str],
     workdir: Path,
+    agent_dir: Path | None,
     allowed_commands: Iterable[str],
     cwd: str = ".",
     timeout: int | None = None,
@@ -47,7 +48,7 @@ def run_command(
     if program not in allowed:
         raise ToolError(f"Command '{program}' is not allowed. Allowed commands: {', '.join(sorted(allowed))}.")
 
-    run_cwd = resolve_dir(workdir, cwd or ".")
+    run_cwd = resolve_dir(workdir, cwd or ".", agent_dir)
     effective_timeout = min(max(int(timeout or DEFAULT_TIMEOUT), 1), MAX_TIMEOUT)
 
     try:

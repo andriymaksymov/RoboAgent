@@ -1,6 +1,6 @@
 # RoboAgent
 
-RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to a switchable LLM provider (OpenAI, Anthropic Claude, Google Gemini or a local OpenAI-compatible server), exposes a focused set of local tools to the model, and lets the model inspect files, edit code, run Python, search project trees, and perform basic Git operations inside a controlled working directory.
+RoboAgent is a lightweight AI coding and build agent for Python projects. It connects to a switchable LLM provider (OpenAI, Anthropic Claude, Google Gemini or a local OpenAI-compatible server), exposes a focused set of local tools to the model, and lets the model inspect files, edit code, run Python, search project trees, and perform basic Git operations inside a controlled working directory. Optionally, it can also reach its own repository and improve itself (new tools, fixes) while building another project.
 
 ## Purpose
 
@@ -13,6 +13,7 @@ The project is a minimal foundation for an AI-assisted build agent that can:
 - execute Python for validation
 - review and create Git changes
 - iterate until it produces a final response
+- extend or fix its own tools on demand, in its own repository
 
 The provider is selected with one setting in the run config. Each provider uses its native API, so features such as reasoning, thinking and prompt caching work as intended.
 
@@ -22,7 +23,7 @@ The provider is selected with one setting in the run config. Each provider uses 
 RoboAgent/
 ├── agent/
 │   ├── __init__.py              # Exposes run_agent
-│   ├── branch_guard.py          # Refuses to start on protected branches
+│   ├── branch_guard.py          # Refuses to start on protected branches (workdir and agent_dir)
 │   ├── config.py                # Loads .env (LLM_* settings) and the TOML run config
 │   ├── runner.py                # Main agent loop and tool dispatch
 │   ├── system_prompt.py         # Loads the system prompt file
@@ -53,7 +54,7 @@ RoboAgent/
 │       ├── git_status.py        # Shows repository status
 │       ├── registry.py          # @tool decorator, Tool, ToolRegistry, central error handling/logging
 │       ├── run_command.py       # Runs allowed tools (pytest, pip, ruff)
-│       └── utils.py             # Shared path resolution and git repository helpers
+│       └── utils.py             # Shared path resolution ('@agent/' root) and git repository helpers
 │   └── plugin/
 │       ├── __init__.py          # Auto-discovers and imports every plugin module
 │       └── echo.py              # Example plugin tool and template
@@ -85,6 +86,7 @@ Configuration is split in two:
   - `protected_branches` (default: `["main"]`): the agent refuses to start if a repository in the workdir (the workdir itself or a direct subfolder) is on one of these branches
   - `allowed_commands` (default: `["pytest", "pip", "ruff"]`): tools `run_command` may execute; each runs as `python -m <tool>` with the agent's interpreter
   - `model` (optional): overrides the provider's model (`<PROVIDER>_MODEL`, `LLM_MODEL` or preset) for this run
+  - `agent_dir` (optional): the agent's own repository, reachable by the tools as `@agent/...`, see [Self-Improvement](#self-improvement). Must exist. Omit it to disable self-improvement.
 
 ### LLM Providers
 
@@ -110,7 +112,7 @@ Tuning knobs such as `reasoning_effort`, `max_tokens`, `thinking` or `temperatur
 `agent/runner.py` contains the orchestration loop. It:
 
 1. loads configuration and the system prompt
-2. refuses to start if a repository in the workdir is on a protected branch (see `protected_branches`)
+2. refuses to start if a repository in the workdir, or `agent_dir`, is on a protected branch (see `protected_branches`)
 3. creates the `LLMClient` for the configured provider (`agent.llm.create_client`)
 4. sends the conversation and tool definitions to the model
 5. executes requested tools locally
@@ -152,6 +154,8 @@ How a tool is built from the function:
 
 To add a tool, drop a module with the decorated function into `agent/plugin/`; it is imported automatically at startup (a plugin that fails to import is logged and skipped). Built-in tools live in `agent/core/` and are imported in `agent/core/__init__.py`.
 
+Parameters named `workdir` and `agent_dir` are injected like any other `AgentConfig` field. Path-taking tools pass both to the helpers in `agent/core/utils.py`, so `@agent/...` paths work automatically.
+
 Available tools:
 
 - `execute_python(code)`
@@ -191,13 +195,28 @@ This approach fits the lightweight build-agent workflow because it adds no extra
 
 ### Path Safety and Git Helpers
 
-`agent/core/utils.py` centralizes path resolution and Git repository access. File and repository operations are constrained to the workdir through `resolve_in_workdir`, which helps prevent accidental access outside the configured workspace.
+`agent/core/utils.py` centralizes path resolution and Git repository access. File and repository operations are constrained to the workdir through `resolve_in_workdir`, which helps prevent accidental access outside the configured workspace. Paths starting with `@agent/` (or just `@agent`) resolve inside `agent_dir` instead, and absolute paths are accepted when they lie inside either root.
 
 Git operations are implemented as separate modules and use `GitPython` under the hood. The available workflow includes `git_pull`, allowing the agent to begin repository work by synchronizing with the remote before inspecting status or making changes.
 
+### Self-Improvement
+
+The agent builds the project in `workdir` and, when `agent_dir` is set, can also change its own code in that separate repository. All tools address it with the `@agent/` path prefix:
+
+```text
+read_file("@agent/agent/plugin/echo.py")
+write_file("@agent/agent/plugin/my_tool.py", ...)
+run_command(["pytest", "-q"], cwd="@agent")
+git_commit("@agent", "feature: add my_tool")
+```
+
+The system prompt tells the agent to add new tools as plugins with tests, validate them with the agent's own `pytest` and `ruff`, and commit them separately from the project's changes. Tools are loaded at startup, so a new or changed tool is available **from the next run on**.
+
+The default `workdir` (`./workspace`) lies inside the agent repository. It is git-ignored and excluded from the agent's `ruff` and `pytest` configuration, so the agent's own checks don't pick up the project being built.
+
 ### Prompting
 
-The system prompt lives in `prompts/system.md`. It instructs the model to inspect files before editing, validate changes after modifications, keep edits focused, and return a concise summary.
+The system prompt lives in `prompts/system.md`. It instructs the model to inspect files before editing, validate changes after modifications, keep edits focused, commit validated changes, and return a concise summary. Its *Self-Improvement* section explains the `@agent/` root.
 
 ### Entrypoint
 
@@ -242,7 +261,8 @@ Run settings go in a TOML file. Copy [`roboagent.toml.example`](roboagent.toml.e
 
 ```toml
 provider = "anthropic"   # "openai" | "anthropic" | "gemini" | "local"
-workdir = "./workspace"
+workdir = "./workspace/my-project"
+agent_dir = "."          # optional: enables self-improvement
 system_prompt = "./prompts/system.md"
 max_iterations = 20
 protected_branches = ["main"]

@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
     "protected_branches": ["main"],
     "allowed_commands": ["pytest", "pip", "ruff"],
 }
+OPTIONAL_KEYS = {"model", "agent_dir"}
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,8 @@ class AgentConfig:
     max_iterations: int
     protected_branches: tuple[str, ...]
     allowed_commands: tuple[str, ...]
+    # The agent's own repository, reachable by the tools as '@agent/...'; None disables it.
+    agent_dir: Path | None = None
 
     @property
     def provider(self) -> str:
@@ -49,7 +52,7 @@ def _read_config_file(config_file: Path) -> dict[str, Any]:
     with config_file.open("rb") as handle:
         data = tomllib.load(handle)
 
-    allowed_keys = set(DEFAULTS) | {"model"}
+    allowed_keys = set(DEFAULTS) | OPTIONAL_KEYS
     unknown = set(data) - allowed_keys
     if unknown:
         raise ValueError(
@@ -90,6 +93,14 @@ def load_config(config_file: Path | None = None) -> AgentConfig:
     workdir = (base_dir / settings["workdir"]).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
 
+    agent_dir = settings.get("agent_dir")
+    if agent_dir is not None:
+        if not isinstance(agent_dir, str):
+            raise ValueError("'agent_dir' must be a string")
+        agent_dir = (base_dir / agent_dir).resolve()
+        if not agent_dir.is_dir():
+            raise ValueError(f"'agent_dir' is not a directory: {agent_dir}")
+
     return AgentConfig(
         llm=llm,
         workdir=workdir,
@@ -97,5 +108,6 @@ def load_config(config_file: Path | None = None) -> AgentConfig:
         max_iterations=max_iterations,
         protected_branches=_string_tuple(settings["protected_branches"], "protected_branches"),
         allowed_commands=_string_tuple(settings["allowed_commands"], "allowed_commands"),
+        agent_dir=agent_dir,
     )
 
