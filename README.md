@@ -25,6 +25,7 @@ RoboAgent/
 │   ├── __init__.py              # Exposes run_agent
 │   ├── branch_guard.py          # Refuses to start on protected branches (workdir and agent_dir)
 │   ├── config.py                # Loads .env (LLM_* settings) and the TOML run config
+│   ├── plugin_loader.py         # Validates and hot-reloads plugin tools
 │   ├── runner.py                # Main agent loop and tool dispatch
 │   ├── system_prompt.py         # Loads the system prompt file
 │   ├── llm/
@@ -56,7 +57,7 @@ RoboAgent/
 │       ├── run_command.py       # Runs allowed tools (pytest, pip, ruff)
 │       └── utils.py             # Shared path resolution ('@agent/' root) and git repository helpers
 │   └── plugin/
-│       ├── __init__.py          # Auto-discovers and imports every plugin module
+│       ├── __init__.py          # Loads every plugin module at import time
 │       └── echo.py              # Example plugin tool and template
 ├── prompts/
 │   └── system.md                # System prompt used by the agent
@@ -116,8 +117,9 @@ Tuning knobs such as `reasoning_effort`, `max_tokens`, `thinking` or `temperatur
 3. creates the `LLMClient` for the configured provider (`agent.llm.create_client`)
 4. sends the conversation and tool definitions to the model
 5. executes requested tools locally
-6. appends tool results back into the conversation
-7. repeats until the model returns a final answer or the iteration limit is reached
+6. hot-reloads plugin tools that were added, changed or deleted, and updates the model's tool list
+7. appends tool results back into the conversation
+8. repeats until the model returns a final answer or the iteration limit is reached, then adds a plugin load report to the answer
 
 The runner is provider-neutral. API failures are returned as `[Error]: ...` (CLI exit code `1`).
 
@@ -152,7 +154,7 @@ How a tool is built from the function:
 - **Errors**: raise `ToolError` (or let an `OSError` propagate) for expected failures. The model receives `[Error]: <message>`. Any other exception is also returned as an error, and its traceback is logged at debug level. Tools need no try/except of their own.
 - **Logging**: each call logs one short info line with the arguments and one with the first output line and its size. Debug level (`--verbose`) adds the full arguments and output.
 
-To add a tool, drop a module with the decorated function into `agent/plugin/`; it is imported automatically at startup (a plugin that fails to import is logged and skipped). Built-in tools live in `agent/core/` and are imported in `agent/core/__init__.py`.
+To add a tool, drop a module with the decorated function into `agent/plugin/`; it is loaded automatically at startup and hot-reloaded while the agent runs (see [Self-Improvement](#self-improvement)). A plugin that fails to load is logged and skipped. Built-in tools live in `agent/core/` and are imported in `agent/core/__init__.py`.
 
 Parameters named `workdir` and `agent_dir` are injected like any other `AgentConfig` field. Path-taking tools pass both to the helpers in `agent/core/utils.py`, so `@agent/...` paths work automatically.
 
@@ -210,7 +212,17 @@ run_command(["pytest", "-q"], cwd="@agent")
 git_commit("@agent", "feature: add my_tool")
 ```
 
-The system prompt tells the agent to add new tools as plugins with tests, validate them with the agent's own `pytest` and `ruff`, and commit them separately from the project's changes. Tools are loaded at startup, so a new or changed tool is available **from the next run on**.
+The system prompt tells the agent to add new tools as plugins with tests, validate them with the agent's own `pytest` and `ruff`, and commit them separately from the project's changes.
+
+Plugins are **hot-reloaded**, so the agent can create a tool and use it in the same run. After each batch of tool calls the runner calls `PLUGINS.refresh()` (`agent/plugin_loader.py`), which compares the content hashes of the files in `agent/plugin/` with the last scan:
+
+- A new or changed module is validated before it goes live: it must compile and import without raising (including `SystemExit`), and each of its tools needs a docstring description, a supported parameter type and a name no other module uses. A module that passes has its tools registered, replacing its previous version's tools.
+- A module that fails is logged and skipped, and the agent keeps running. If an earlier version of it was loaded, that version stays active.
+- A deleted module has its tools unregistered.
+
+The updated tool list is sent to the LLM via `LLMClient.set_tools()`, and a `[Plugins reloaded]` note listing the changes is appended to the last tool result. At the end of the run, a `[Self-improvement]` section in the final answer lists every plugin that was loaded, reloaded, removed or failed during the run (including those that still fail since startup).
+
+Only `agent/plugin/` of the *running* agent is watched, so hot reload applies when `agent_dir` points to that same repository. Changes to `agent/core/`, the runner or the LLM clients take effect from the next run on.
 
 The default `workdir` (`./workspace`) lies inside the agent repository. It is git-ignored and excluded from the agent's `ruff` and `pytest` configuration, so the agent's own checks don't pick up the project being built.
 

@@ -35,6 +35,9 @@ class LocalClient(LLMClient):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
+        self.set_tools(tools)
+
+    def set_tools(self, tools: Sequence[ToolSpec]) -> None:
         self._tools = [
             {
                 "type": "function",
