@@ -62,6 +62,11 @@ class GeminiClient(LLMClient):
         response = self._client.models.generate_content(
             model=self.model, contents=self._contents, config=self._config
         )
+        if response.usage_metadata:
+            self._add_token_usage(
+                response.usage_metadata.prompt_token_count,
+                response.usage_metadata.candidates_token_count,
+            )
         if not response.candidates or response.candidates[0].content is None:
             raise LLMError(f"Gemini returned no content (feedback: {response.prompt_feedback})")
 

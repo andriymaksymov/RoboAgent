@@ -57,6 +57,8 @@ class LocalClient(LLMClient):
             tools=self._tools,  # type: ignore[arg-type]
             **options,
         )
+        if response.usage:
+            self._add_token_usage(response.usage.prompt_tokens, response.usage.completion_tokens)
         message = response.choices[0].message
 
         tool_calls = tuple(

@@ -72,6 +72,8 @@ class OpenAIClient(LLMClient):
             tools=self._tools,
             **self._request_options(),
         )
+        if response.usage:
+            self._add_token_usage(response.usage.input_tokens, response.usage.output_tokens)
         if response.status == "incomplete":
             logger.warning("Response incomplete: %s", response.incomplete_details)
 

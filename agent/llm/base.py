@@ -70,6 +70,12 @@ class LLMResponse:
     tool_calls: tuple[ToolCall, ...] = ()
 
 
+@dataclass(frozen=True)
+class TokenUsage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
 class LLMClient(ABC):
     """A single agent conversation with a model.
 
@@ -79,10 +85,21 @@ class LLMClient(ABC):
 
     def __init__(self, settings: LLMSettings) -> None:
         self.settings = settings
+        self._token_usage = TokenUsage()
 
     @property
     def model(self) -> str:
         return self.settings.model
+
+    @property
+    def token_usage(self) -> TokenUsage:
+        return self._token_usage
+
+    def _add_token_usage(self, input_tokens: int | None, output_tokens: int | None) -> None:
+        self._token_usage = TokenUsage(
+            input_tokens=self._token_usage.input_tokens + max(0, input_tokens or 0),
+            output_tokens=self._token_usage.output_tokens + max(0, output_tokens or 0),
+        )
 
     @abstractmethod
     def start(self, system_prompt: str, user_prompt: str, tools: Sequence[ToolSpec]) -> None:
