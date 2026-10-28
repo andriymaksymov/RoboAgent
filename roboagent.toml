@@ -1,0 +1,27 @@
+# RoboAgent run configuration.
+# Relative paths are resolved against this file's directory.
+# API keys, endpoints and models live in .env (LLM_* variables, see .env.example).
+
+# LLM provider: "openai", "anthropic", "gemini" or "local" (OpenAI-compatible server).
+# Each provider has a predefined API key variable, endpoint and model.
+provider = "anthropic"
+
+# Path to the agent's own repository, relative to this config file.
+# Setting this enables self-improvement: the agent can read/write/commit
+# its own source via '@agent/...' paths in any tool.
+agent_dir = "."
+
+# Path to the workspace's repository, relative to this config file.
+workdir = "."
+
+system_prompt = "../prompts/system.md"
+max_iterations = 100
+
+# The agent refuses to start if a repository in the workdir is on one of these branches.
+protected_branches = ["main", "master"]
+
+# Tools run_command may execute (each runs as `python -m <tool>`).
+allowed_commands = ["pytest", "pip", "ruff"]
+
+# Optional: override the provider's model (preset / LLM_*_MODEL) for this run profile.
+
