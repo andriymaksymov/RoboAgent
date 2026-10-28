@@ -43,7 +43,7 @@ def run_agent(
                 return _with_report(response.text, report)
 
             if response.text:
-                logger.info("Model: %s", response.text.strip())
+                logger.info("Model:📝 %s", response.text.strip())
             results = [
                 ToolResult(call, REGISTRY.invoke(call.name, call.arguments, config))
                 for call in response.tool_calls
