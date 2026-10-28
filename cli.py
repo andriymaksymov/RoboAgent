@@ -1,11 +1,33 @@
 import argparse
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from agent import run_agent
 from agent.config import load_config
 from agent.llm import LLMError, create_client
+
+_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+_LOGS_DIR = Path(__file__).parent / "logs"
+
+
+def _setup_file_logger(prompt_file: Path, verbose: bool) -> Path:
+    """Attach a FileHandler to the root logger that mirrors all console output.
+
+    The log file is placed in ``<agent_root>/logs/`` and named
+    ``<prompt_stem>_<YYYYMMDD_HHMMSS>.log``.  Returns the resolved log path.
+    """
+    _LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = _LOGS_DIR / f"{prompt_file.stem}_{timestamp}.log"
+
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setLevel(logging.DEBUG if verbose else logging.INFO)
+    handler.setFormatter(logging.Formatter(_LOG_FORMAT))
+
+    logging.getLogger().addHandler(handler)
+    return log_path
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -42,12 +64,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        format=_LOG_FORMAT,
     )
     # Keep third-party debug noise (HTTP, git) out of verbose agent logs.
     for noisy in ("httpx", "httpcore", "openai", "anthropic", "google_genai", "git"):
         logging.getLogger(noisy).setLevel(logging.INFO if args.verbose else logging.WARNING)
     logger = logging.getLogger("roboagent")
+
+    log_path = _setup_file_logger(args.prompt_file, args.verbose)
+    logger.info("Logging to file: %s", log_path)
 
     try:
         prompt = args.prompt_file.read_text(encoding="utf-8")
