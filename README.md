@@ -257,6 +257,21 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
+### Runtime Dependencies
+
+| Package | Purpose |
+|---|---|
+| `openai` | OpenAI Responses API client |
+| `anthropic` | Anthropic Messages API client |
+| `google-genai` | Google Gemini API client |
+| `python-dotenv` | Loads `.env` settings at startup |
+| `rich` | Terminal formatting used by chromadb and typer |
+| `GitPython` | Git operations (`git_*` tools) |
+| `chromadb` | Local vector database for the memory tools (`memory_save`, `memory_search`) |
+| `Flask` | Web framework present in the environment (installed directly) |
+
+**Dev-only** (install with `pip install -e ".[dev]"`): `pytest`, `ruff`, `black`, `mypy`
+
 ## Configuration
 
 Create a `.env` file in the project root (see `.env.example`):

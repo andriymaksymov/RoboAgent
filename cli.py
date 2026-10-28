@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        prompt = f"{prompt}\n\n---\n[Agent Final Response]:\n{final_response}"
+        prompt = f"# User Prompt\n\n{prompt}\n\n---\n# Agent Response\n\n{final_response}"
         args.prompt_file.write_text(prompt, encoding="utf-8")
     except OSError as exc:
         logger.error("Could not write final output to prompt file '%s': %s", args.prompt_file, exc)
