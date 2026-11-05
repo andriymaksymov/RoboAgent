@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         prompt = args.prompt_file.read_text(encoding="utf-8")
-        config = load_config(args.config)
+        config = load_config(args.config, verbose=args.verbose)
     except (OSError, ValueError) as exc:
         logger.error("%s", exc)
         return 2

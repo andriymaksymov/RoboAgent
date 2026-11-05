@@ -38,6 +38,9 @@ class AgentConfig:
     allowed_commands: tuple[str, ...]
     # The agent's own repository, reachable by the tools as '@agent/...'; None disables it.
     agent_dir: Path | None = None
+    # When True the agent runs in verbose/debug mode; tools use this flag to emit
+    # extra artefacts (e.g. saving executed code to @agent/logs/).
+    verbose: bool = False
 
     @property
     def provider(self) -> str:
@@ -68,7 +71,7 @@ def _string_tuple(value: Any, key: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def load_config(config_file: Path | None = None) -> AgentConfig:
+def load_config(config_file: Path | None = None, *, verbose: bool = False) -> AgentConfig:
     load_dotenv()
 
     settings = dict(DEFAULTS)
@@ -109,5 +112,6 @@ def load_config(config_file: Path | None = None) -> AgentConfig:
         protected_branches=_string_tuple(settings["protected_branches"], "protected_branches"),
         allowed_commands=_string_tuple(settings["allowed_commands"], "allowed_commands"),
         agent_dir=agent_dir,
+        verbose=verbose,
     )
 
