@@ -32,6 +32,7 @@ dependencies = [
     "GitPython",
     "chromadb",
     "Flask",
+	"pyodbc",
 ]
 
 [project.optional-dependencies]
