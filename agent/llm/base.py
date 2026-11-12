@@ -84,9 +84,14 @@ class LLMClient(ABC):
     called between turns to change the tools offered from the next request on.
     """
 
+    # A single request whose prompt (the whole conversation sent) exceeds this many tokens
+    # logs a warning: a hint that the context should be compacted or the task split.
+    context_warning_tokens: int = 32_768
+
     def __init__(self, settings: LLMSettings) -> None:
         self.settings = settings
         self._token_usage = TokenUsage()
+        self.last_context_tokens = 0
 
     @property
     def model(self) -> str:
@@ -96,11 +101,29 @@ class LLMClient(ABC):
     def token_usage(self) -> TokenUsage:
         return self._token_usage
 
-    def _add_token_usage(self, input_tokens: int | None, output_tokens: int | None) -> None:
+    def _add_token_usage(
+        self,
+        input_tokens: int | None,
+        output_tokens: int | None,
+        context_tokens: int | None = None,
+    ) -> None:
+        """Accumulate usage of one request.
+
+        ``context_tokens`` is the full prompt size of this request; it defaults to
+        ``input_tokens`` and only differs where the provider reports cached tokens apart.
+        """
+        input_tokens = max(0, input_tokens or 0)
         self._token_usage = TokenUsage(
-            input_tokens=self._token_usage.input_tokens + max(0, input_tokens or 0),
+            input_tokens=self._token_usage.input_tokens + input_tokens,
             output_tokens=self._token_usage.output_tokens + max(0, output_tokens or 0),
         )
+        self.last_context_tokens = max(0, context_tokens if context_tokens is not None else input_tokens)
+        if self.last_context_tokens > self.context_warning_tokens:
+            logger.warning(
+                "!!! LARGE CONTEXT !!! request used %d input tokens (warning threshold %d)",
+                self.last_context_tokens,
+                self.context_warning_tokens,
+            )
 
     @abstractmethod
     def start(self, system_prompt: str, user_prompt: str, tools: Sequence[ToolSpec]) -> None:

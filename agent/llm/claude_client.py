@@ -66,7 +66,15 @@ class ClaudeClient(LLMClient):
             tools=self._tools,  # type: ignore[arg-type]
             **self._request_options(),
         )
-        self._add_token_usage(response.usage.input_tokens, response.usage.output_tokens)
+        usage = response.usage
+        # With prompt caching, input_tokens excludes cached tokens; the context is their sum.
+        self._add_token_usage(
+            usage.input_tokens,
+            usage.output_tokens,
+            context_tokens=usage.input_tokens
+            + (usage.cache_read_input_tokens or 0)
+            + (usage.cache_creation_input_tokens or 0),
+        )
         if response.stop_reason == "max_tokens":
             logger.warning("Claude response truncated at max_tokens=%s", self.max_tokens)
         logger.debug("Claude usage: %s", response.usage)
