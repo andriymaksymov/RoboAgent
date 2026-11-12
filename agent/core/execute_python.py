@@ -15,7 +15,9 @@ automatically persisted to the shared ChromaDB vector store via
 patterns without the model having to regenerate them from scratch.
 """
 
+import ast
 import logging
+import os
 import subprocess
 import sys
 import threading
@@ -23,7 +25,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .. import memory_backend as _memory_backend
-from .registry import tool
+from .registry import ToolError, tool
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +108,90 @@ def _auto_save_to_memory(code: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# "Pure computation" guard
+# ---------------------------------------------------------------------------
+#
+# Two layers. The static check gives the model a clear, early error for the obvious
+# cases. The audit hook (installed in the child before the snippet runs, and impossible
+# to remove from Python code) catches indirect routes such as asyncio subprocesses,
+# __import__ tricks or third-party wrappers. It is a guard rail, not a sandbox: native
+# code (ctypes, C extensions) can still bypass it.
+
+_FORBIDDEN_MODULES = frozenset({"subprocess", "multiprocessing", "pty", "pexpect", "sh", "plumbum"})
+_FORBIDDEN_OS_ATTRS = frozenset({"system", "popen", "startfile", "fork", "forkpty"})
+_FORBIDDEN_OS_PREFIXES = ("exec", "spawn", "posix_spawn")
+_BLOCKED_AUDIT_EVENTS = (
+    "subprocess.Popen",
+    "os.system",
+    "os.exec",
+    "os.spawn",
+    "os.posix_spawn",
+    "os.startfile",
+    "os.fork",
+    "os.forkpty",
+    "_winapi.CreateProcess",
+)
+
+_PRELUDE = f"""
+import sys
+
+def _roboagent_guard(event, args, _blocked=frozenset({_BLOCKED_AUDIT_EVENTS!r})):
+    if event in _blocked:
+        raise PermissionError(
+            f"execute_python is for pure computation; '{{event}}' (starting a process) is blocked."
+        )
+
+sys.addaudithook(_roboagent_guard)
+del _roboagent_guard
+_code = sys.stdin.buffer.read().decode("utf-8")
+exec(compile(_code, "<execute_python>", "exec"), {{"__name__": "__main__", "__builtins__": __builtins__}})
+"""
+
+
+def _is_forbidden_os_attr(name: str) -> bool:
+    return name in _FORBIDDEN_OS_ATTRS or name.startswith(_FORBIDDEN_OS_PREFIXES)
+
+
+def _module_root(name: str) -> str:
+    return name.split(".", 1)[0]
+
+
+def find_forbidden_calls(code: str) -> list[str]:
+    """Return a description of every process-starting construct found in *code*.
+
+    Code that does not parse is not rejected here; running it reports the SyntaxError.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found += [f"import {a.name}" for a in node.names if _module_root(a.name) in _FORBIDDEN_MODULES]
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            if _module_root(node.module) in _FORBIDDEN_MODULES:
+                found.append(f"from {node.module} import ...")
+            elif node.module == "os":
+                found += [f"from os import {a.name}" for a in node.names if _is_forbidden_os_attr(a.name)]
+        elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            if node.value.id == "os" and _is_forbidden_os_attr(node.attr):
+                found.append(f"os.{node.attr}")
+        elif isinstance(node, ast.Call) and node.args and isinstance(node.args[0], ast.Constant):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+            target = node.args[0].value
+            if (
+                name in ("__import__", "import_module")
+                and isinstance(target, str)
+                and _module_root(target) in _FORBIDDEN_MODULES
+            ):
+                found.append(f"{name}({target!r})")
+    return list(dict.fromkeys(found))
+
+
+# ---------------------------------------------------------------------------
 # Tool
 # ---------------------------------------------------------------------------
 
@@ -117,11 +203,20 @@ def execute_python(
     verbose: bool,
     agent_dir: Path | None,
 ) -> str:
-    """Execute Python code in a subprocess.
+    """Run a short, pure-computation Python snippet (calculations, parsing, quick checks of the project's own functions) and return its output. Starting processes is blocked (subprocess, multiprocessing, os.system, os.popen, os.exec*/spawn*); use run_tests, lint, format_code, pip_* or git_* instead, or add a plugin tool when none fits. Timeout: 20 seconds.
 
     Args:
         code: Python source to run with the agent's interpreter in the workdir.
     """
+    violations = find_forbidden_calls(code)
+    if violations:
+        raise ToolError(
+            "execute_python is for pure computation; starting processes is not allowed ("
+            + "; ".join(violations)
+            + "). Use the dedicated tools (run_tests, lint, format_code, pip_*, git_*) "
+            "or add a plugin tool in @agent/agent/plugin/."
+        )
+
     # --- VERBOSE: persist source to @agent/logs/ ---
     if verbose and agent_dir:
         try:
@@ -130,12 +225,17 @@ def execute_python(
         except Exception as exc:  # noqa: BLE001  # pragma: no cover
             logger.debug("execute_python: could not write log file: %s", exc)
 
+    # The snippet is passed on stdin and run under an audit hook that blocks process creation.
     result = subprocess.run(
-        [sys.executable, "-c", code],
+        [sys.executable, "-c", _PRELUDE],
+        input=code,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=20,
         cwd=str(workdir),
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
     )
 

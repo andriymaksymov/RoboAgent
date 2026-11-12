@@ -24,6 +24,7 @@ DEFAULTS: dict[str, Any] = {
     "max_iterations": 20,
     "protected_branches": ["main"],
     "allowed_commands": ["pytest", "pip", "ruff"],
+    "enable_run_command": False,
 }
 OPTIONAL_KEYS = {"model", "agent_dir"}
 
@@ -41,6 +42,9 @@ class AgentConfig:
     # When True the agent runs in verbose/debug mode; tools use this flag to emit
     # extra artefacts (e.g. saving executed code to @agent/logs/).
     verbose: bool = False
+    # Offer the generic run_command tool. Off by default: the dedicated tools (run_tests,
+    # lint, format_code, pip_*) cover the usual needs, and the agent can add plugins.
+    enable_run_command: bool = False
 
     @property
     def provider(self) -> str:
@@ -96,6 +100,10 @@ def load_config(config_file: Path | None = None, *, verbose: bool = False) -> Ag
     workdir = (base_dir / settings["workdir"]).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
 
+    enable_run_command = settings["enable_run_command"]
+    if not isinstance(enable_run_command, bool):
+        raise ValueError("'enable_run_command' must be true or false")  # noqa: TRY004
+
     agent_dir = settings.get("agent_dir")
     if agent_dir is not None:
         if not isinstance(agent_dir, str):
@@ -113,5 +121,6 @@ def load_config(config_file: Path | None = None, *, verbose: bool = False) -> Ag
         allowed_commands=_string_tuple(settings["allowed_commands"], "allowed_commands"),
         agent_dir=agent_dir,
         verbose=verbose,
+        enable_run_command=enable_run_command,
     )
 

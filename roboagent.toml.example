@@ -20,7 +20,12 @@ max_iterations = 20
 # The agent refuses to start if a repository in the workdir is on one of these branches.
 protected_branches = ["main"]
 
-# Tools run_command may execute (each runs as `python -m <tool>`).
+# The generic run_command tool is off by default: the dedicated tools (run_tests, lint,
+# format_code, pip_list/pip_show/pip_install) cover the usual needs, and the agent can add
+# plugin tools for anything else. Set to true to offer it again.
+enable_run_command = false
+
+# Tools run_command may execute when enabled (each runs as `python -m <tool>`).
 allowed_commands = ["pytest", "pip", "ruff"]
 
 # Optional: override the provider's model (preset / LLM_*_MODEL) for this run profile.

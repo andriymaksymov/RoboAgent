@@ -5,6 +5,7 @@ To add a tool, create a module with a decorated function and import it below.
 """
 
 from .content_search import content_search
+from .dev_tools import format_code, lint, pip_install, pip_list, pip_show, run_tests
 from .execute_python import execute_python
 from .file_reader import read_file
 from .file_replacer import replace_in_file
@@ -12,6 +13,8 @@ from .file_search import file_search
 from .file_writer import write_file
 from .folder_content import folder_content
 from .git_add import git_add
+from .git_checkout import git_checkout
+from .git_clone import git_clone
 from .git_commit import git_commit
 from .git_diff import git_diff
 from .git_log import git_log
@@ -34,7 +37,10 @@ __all__ = [
     "execute_python",
     "file_search",
     "folder_content",
+    "format_code",
     "git_add",
+    "git_checkout",
+    "git_clone",
     "git_commit",
     "git_diff",
     "git_log",
@@ -42,9 +48,14 @@ __all__ = [
     "git_pull",
     "git_restore",
     "git_status",
+    "lint",
+    "pip_install",
+    "pip_list",
+    "pip_show",
     "read_file",
     "replace_in_file",
     "run_command",
+    "run_tests",
     "tool",
     "write_file",
 ]

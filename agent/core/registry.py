@@ -49,6 +49,11 @@ class Tool:
     properties: Dict[str, Any] = field(default_factory=dict)
     required: tuple[str, ...] = ()
     injected: tuple[str, ...] = ()
+    # Name of a boolean AgentConfig field that must be true for the tool to be offered.
+    enabled_by: str | None = None
+
+    def is_enabled(self, config: AgentConfig) -> bool:
+        return self.enabled_by is None or bool(getattr(config, self.enabled_by, False))
 
     @property
     def schema(self) -> Dict[str, Any]:
@@ -135,11 +140,22 @@ class ToolRegistry:
         if item is None:
             logger.warning("Unknown tool requested: %s", name)
             return f"[Error]: Unknown tool '{name}'."
+        if not item.is_enabled(config):
+            logger.warning("Disabled tool requested: %s", name)
+            return (
+                f"[Error]: Tool '{name}' is disabled in this run "
+                f"(set '{item.enabled_by} = true' in the config to enable it)."
+            )
         return item.invoke(arguments, config)
 
     @property
     def schemas(self) -> list[Dict[str, Any]]:
+        """Schemas of all registered tools, including config-disabled ones."""
         return [item.schema for item in self._tools.values()]
+
+    def schemas_for(self, config: AgentConfig) -> list[Dict[str, Any]]:
+        """Schemas of the tools enabled by *config*; this is what the model is offered."""
+        return [item.schema for item in self._tools.values() if item.is_enabled(config)]
 
     def __contains__(self, name: str) -> bool:
         return name in self._tools
@@ -155,18 +171,27 @@ def tool(
     func: Callable[..., str] | None = None,
     *,
     name: str | None = None,
+    enabled_by: str | None = None,
     registry: ToolRegistry = REGISTRY,
 ):
-    """Register ``func`` as a tool. Usable as ``@tool`` or ``@tool(name=...)``."""
+    """Register ``func`` as a tool. Usable as ``@tool`` or ``@tool(name=..., enabled_by=...)``.
+
+    ``enabled_by`` names a boolean ``AgentConfig`` field; while it is false the tool is
+    hidden from the model and calls to it are refused.
+    """
 
     def decorate(f: Callable[..., str]) -> Callable[..., str]:
-        registry.register(build_tool(f, name=name))
+        registry.register(build_tool(f, name=name, enabled_by=enabled_by))
         return f
 
     return decorate(func) if func is not None else decorate
 
 
-def build_tool(func: Callable[..., str], name: str | None = None) -> Tool:
+def build_tool(
+    func: Callable[..., str], name: str | None = None, enabled_by: str | None = None
+) -> Tool:
+    if enabled_by is not None and enabled_by not in INJECTABLE:
+        raise ValueError(f"'enabled_by' must name an AgentConfig field, got {enabled_by!r}")
     description, param_docs = _parse_docstring(inspect.getdoc(func) or "")
     hints = typing.get_type_hints(func)
 
@@ -192,6 +217,7 @@ def build_tool(func: Callable[..., str], name: str | None = None) -> Tool:
         properties=properties,
         required=tuple(required),
         injected=tuple(injected),
+        enabled_by=enabled_by,
     )
 
 

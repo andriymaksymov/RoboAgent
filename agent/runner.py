@@ -34,7 +34,7 @@ def run_agent(
 
     try:
         client = client or create_client(config.llm)
-        client.start(system_prompt, user_prompt, _tool_specs())
+        client.start(system_prompt, user_prompt, _tool_specs(config))
 
         for iteration in range(config.max_iterations):
             logger.info("Iteration %s", iteration + 1)
@@ -53,7 +53,7 @@ def run_agent(
             events = PLUGINS.refresh()
             if events:
                 report.add(events)
-                client.set_tools(_tool_specs())
+                client.set_tools(_tool_specs(config))
                 last = results[-1]
                 results[-1] = ToolResult(last.call, f"{last.output}\n\n{_plugin_notice(events)}")
             client.add_tool_results(results)
@@ -64,8 +64,8 @@ def run_agent(
     return _with_report("[Error]: Reached max tool iterations without a final answer.", report)
 
 
-def _tool_specs() -> list[ToolSpec]:
-    return [ToolSpec.from_schema(schema) for schema in REGISTRY.schemas]
+def _tool_specs(config: AgentConfig) -> list[ToolSpec]:
+    return [ToolSpec.from_schema(schema) for schema in REGISTRY.schemas_for(config)]
 
 
 def _plugin_notice(events: list[PluginEvent]) -> str:

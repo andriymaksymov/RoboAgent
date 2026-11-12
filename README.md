@@ -39,13 +39,16 @@ RoboAgent/
 │   └── core/
 │       ├── __init__.py          # Imports the built-in tool modules (registers them)
 │       ├── content_search.py    # Grep-like content search in folders/subfolders
-│       ├── execute_python.py    # Executes Python in a subprocess
+│       ├── dev_tools.py         # run_tests (pytest), lint/format_code (ruff), pip_list/pip_show/pip_install
+│       ├── execute_python.py    # Runs pure-computation Python snippets (process creation blocked)
 │       ├── file_reader.py       # Reads files from the workdir
 │       ├── file_replacer.py     # Replaces text in files
 │       ├── file_search.py       # Searches files by glob pattern
 │       ├── file_writer.py       # Writes files in the workdir
 │       ├── folder_content.py    # Lists directory contents as JSON
 │       ├── git_add.py           # Stages files in a git repository
+│       ├── git_checkout.py      # Switches to or creates a branch (protected branches refused)
+│       ├── git_clone.py         # Clones a local repository (workdir or @agent) into the workdir
 │       ├── git_commit.py        # Creates git commits
 │       ├── git_diff.py          # Shows repository diffs
 │       ├── git_log.py           # Shows recent commit history
@@ -53,8 +56,9 @@ RoboAgent/
 │       ├── git_pull.py          # Pulls remote changes
 │       ├── git_restore.py       # Discards or unstages uncommitted changes
 │       ├── git_status.py        # Shows repository status
+│       ├── process.py           # Shared subprocess runner: `python -m <tool>`, verbose logs, memory auto-save
 │       ├── registry.py          # @tool decorator, Tool, ToolRegistry, central error handling/logging
-│       ├── run_command.py       # Runs allowed tools (pytest, pip, ruff)
+│       ├── run_command.py       # Generic allow-listed command runner (off unless enable_run_command)
 │       └── utils.py             # Shared path resolution ('@agent/' root) and git repository helpers
 │   └── plugin/
 │       ├── __init__.py          # Loads every plugin module at import time
@@ -85,7 +89,8 @@ Configuration is split in two:
   - `system_prompt` (default: `./prompts/system.md`)
   - `max_iterations` (default: `20`)
   - `protected_branches` (default: `["main"]`): the agent refuses to start if a repository in the workdir (the workdir itself or a direct subfolder) is on one of these branches
-  - `allowed_commands` (default: `["pytest", "pip", "ruff"]`): tools `run_command` may execute; each runs as `python -m <tool>` with the agent's interpreter
+  - `enable_run_command` (default: `false`): offer the generic `run_command` tool. While off, it is hidden from the model and calls to it are refused; the dedicated tools and plugins cover the usual needs
+  - `allowed_commands` (default: `["pytest", "pip", "ruff"]`): tools `run_command` may execute when enabled; each runs as `python -m <tool>` with the agent's interpreter
   - `model` (optional): overrides the provider's model (`<PROVIDER>_MODEL`, `LLM_MODEL` or preset) for this run
   - `agent_dir` (optional): the agent's own repository, reachable by the tools as `@agent/...`, see [Self-Improvement](#self-improvement). Must exist. Omit it to disable self-improvement.
 
@@ -160,8 +165,14 @@ Parameters named `workdir` and `agent_dir` are injected like any other `AgentCon
 
 Available tools:
 
+- `run_tests(paths=None, keyword=None, last_failed=False, cwd=".", timeout=120)`
+- `lint(paths=None, fix=False, cwd=".")`
+- `format_code(paths=None, check=False, cwd=".")`
+- `pip_list(outdated=False)`
+- `pip_show(package)`
+- `pip_install(requirements_file=None, cwd=".", timeout=300)`
 - `execute_python(code)`
-- `run_command(command, cwd=".", timeout=120)`
+- `run_command(command, cwd=".", timeout=120)` (only when `enable_run_command = true`)
 - `read_file(path)`
 - `write_file(path, content)`
 - `replace_in_file(path, target_text, replacement_text)`
@@ -173,12 +184,27 @@ Available tools:
 - `git_diff(repo_path, rev=None)`
 - `git_add(repo_path, pathspec)`
 - `git_restore(repo_path, pathspec, staged=False, source=None)`
+- `git_checkout(repo_path, branch, create=False, start_point=None)`
+- `git_clone(source, destination, branch=None)`
 - `git_commit(repo_path, message)`
 - `git_log(repo_path, max_count=10)`
 - `git_ls_files(repo_path, pathspec=None)`
 - `echo(message, repeat=1)` (example plugin)
 
 These tools are intentionally narrow in scope so the agent can inspect and modify a project while staying within the configured workspace.
+
+### Developer Tools and Restrictions
+
+The agent runs tests, lint and pip through dedicated tools with typed parameters instead of a free-form command line, so it cannot pass arbitrary flags. All of them run as `python -m <tool>` with the agent's interpreter (`agent/core/process.py`), return the exit code, a one-line status and the tail of the output, and share two behaviours: with `--verbose` and `agent_dir` set, each command is written to `@agent/logs/`, and successful test runs and installs are auto-saved to the vector memory.
+
+- `run_tests` runs `pytest -q -rfE --tb=short`; paths and node ids must stay inside the run directory.
+- `lint` runs `ruff check --output-format concise` (optionally `--fix`); `format_code` runs `ruff format` (or `--diff` with `check=true`).
+- pip is limited to `pip_list`, `pip_show` and `pip_install`, which installs only from a requirements file or the project itself (`pip install -e .`). Installing an arbitrary package by name is not offered: the agent adds it to the requirements first, a reviewable change.
+- `execute_python` is for pure computation. A static check rejects `subprocess`, `multiprocessing`, `os.system`, `os.popen`, `os.exec*`/`spawn*` and similar, and the snippet runs under a Python audit hook that blocks every process creation (including indirect routes such as `asyncio` subprocesses). This is a guard rail, not a sandbox: native code (ctypes, C extensions) can bypass it.
+- `run_command` is off by default (`enable_run_command`). Tools can be gated the same way with `@tool(enabled_by="<AgentConfig bool field>")`; the runner offers the model only the tools enabled for the run (`REGISTRY.schemas_for(config)`).
+- `git_checkout` refuses protected branches; `git_clone` clones only local repositories (the workdir, a repository in it, or `@agent`) into a new directory inside the workdir.
+
+When the agent needs something these tools don't cover, it writes a narrow plugin tool for it (see [Self-Improvement](#self-improvement)).
 
 ### Search Tools
 
@@ -208,7 +234,7 @@ The agent builds the project in `workdir` and, when `agent_dir` is set, can also
 ```text
 read_file("@agent/agent/plugin/echo.py")
 write_file("@agent/agent/plugin/my_tool.py", ...)
-run_command(["pytest", "-q"], cwd="@agent")
+run_tests(cwd="@agent")
 git_commit("@agent", "feature: add my_tool")
 ```
 
@@ -293,6 +319,7 @@ agent_dir = "."          # optional: enables self-improvement
 system_prompt = "./prompts/system.md"
 max_iterations = 20
 protected_branches = ["main"]
+enable_run_command = false   # generic run_command tool, off by default
 allowed_commands = ["pytest", "pip", "ruff"]
 ```
 

@@ -102,10 +102,10 @@ class TestTools:
         Repo.init(agent_dir).close()
         assert not REGISTRY.invoke("git_status", {"repo_path": "@agent"}, config).startswith("[Error]")
 
-    def test_run_command_cwd_in_agent_dir(self, config, roots):
+    def test_run_tests_cwd_in_agent_dir(self, config, roots):
         _, agent_dir = roots
         (agent_dir / "test_ok.py").write_text("def test_ok():\n    pass\n", encoding="utf-8")
-        result = REGISTRY.invoke("run_command", {"command": ["pytest", "-q"], "cwd": "@agent"}, config)
+        result = REGISTRY.invoke("run_tests", {"cwd": "@agent"}, config)
         assert result.startswith("[Exit code]: 0")
 
 
