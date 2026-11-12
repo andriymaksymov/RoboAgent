@@ -29,5 +29,5 @@ Your own source code (RoboAgent) is a separate repository from the project you b
 Update your core execution loop and system prompt to utilize the new code memory autonomously:
 1. Whenever a new user task arrives, you must first call `memeory_search` to check if similar problems, patterns, or code pieces have been solved or stored previously.
 2. Incorporate the retrieved context into your reasoning step before writing new code.
-3. Upon successfully completing a complex task or fixing a bug, automatically invoke `memeory_save` to store the winning strategy/code for the future.
+3. Upon successfully completing a complex task or fixing a bug, automatically invoke `memory_save` to store the winning strategy/code for the future.
 4. Test this behavior by giving yourself a small task (e.g., writing a specific utility function), verifying that it queries memory and saves the result upon success.
