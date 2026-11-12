@@ -14,7 +14,7 @@ agent_dir = "."
 # Path to the workspace's repository, relative to this config file.
 workdir = "."
 
-system_prompt = "../prompts/system.md"
+system_prompt = "./prompts/system.md"
 max_iterations = 100
 
 # The agent refuses to start if a repository in the workdir is on one of these branches.
