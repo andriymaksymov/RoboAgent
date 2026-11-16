@@ -5,7 +5,7 @@ import logging
 
 import pytest
 
-from agent.console_log import console_handler, file_only, llm_text, tool_call, tool_result
+from agent.console_log import console_handler, file_only, llm_text, tool_call
 from agent.core.registry import ToolError, ToolRegistry, build_tool
 
 
@@ -14,7 +14,7 @@ def console(monkeypatch):
     monkeypatch.setenv("NO_COLOR", "1")
     stream = io.StringIO()
     handler = console_handler(logging.INFO, stream)
-    logger = logging.getLogger("test.console_log")
+    logger = logging.getLogger("agent.test_console_log")
     logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
     yield logger, stream
@@ -38,17 +38,22 @@ def test_llm_text_is_printed_in_full(console):
     assert stream.getvalue() == text + "\n"
 
 
-def test_tool_call_shows_name_only(console):
+def test_tool_call_shows_arguments(console):
     logger, stream = console
     logger.info("-> read_file(path='a.txt')", extra=tool_call("read_file"))
-    assert lines(stream) == ["-> read_file"]
+    assert lines(stream) == ["-> read_file(path='a.txt')"]
 
 
-def test_tool_result_succeeded_and_failed(console):
-    logger, stream = console
-    logger.info("<- t: ok", extra=tool_result("t", ok=True))
-    logger.warning("<- t failed: boom", extra=tool_result("t", ok=False, error="boom"))
-    assert [line.strip() for line in lines(stream)] == ["succeeded", "failed  ! boom"]
+@pytest.mark.parametrize("name", ["httpx", "httpx2", "anthropic._base_client", "some_new_lib"])
+def test_third_party_info_stays_off_the_console(monkeypatch, name):
+    monkeypatch.setenv("NO_COLOR", "1")
+    stream = io.StringIO()
+    handler = console_handler(logging.INFO, stream)
+    info = logging.LogRecord(name, logging.INFO, __file__, 0, 'HTTP Request: POST x "HTTP/1.1 200 OK"', (), None)
+    warning = logging.LogRecord(name, logging.WARNING, __file__, 0, "real problem", (), None)
+    handler.handle(info)
+    handler.handle(warning)
+    assert lines(stream) == ["! real problem"]
 
 
 def test_warnings_and_errors_are_marked(console):
@@ -115,11 +120,5 @@ def test_registry_console_view(monkeypatch, tmp_path):
         registry_logger.removeHandler(handler)
         registry_logger.setLevel(previous)
 
-    assert [line.strip() for line in lines(stream)] == [
-        "-> ok",
-        "succeeded",
-        "-> bad",
-        "failed  ! nope",
-        "-> nonzero",
-        "failed  ! exit code 1 (some tests failed)",
-    ]
+    # Only the calls (with arguments) reach the console; outcomes go to the log file.
+    assert lines(stream) == ["-> ok(x='1')", "-> bad(x='1')", "-> nonzero(x='1')"]

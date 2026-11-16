@@ -66,9 +66,9 @@ def main(argv: list[str] | None = None) -> int:
     level = logging.DEBUG if args.verbose else logging.INFO
     root = logging.getLogger()
     root.setLevel(level)
-    # Console: compact view (no timestamp/module, highlighted model text, tool name +
-    # succeeded/failed, "!" for problems), the same in verbose mode. The log file keeps
-    # the full detail, including DEBUG records when verbose.
+    # Console: compact view (no timestamp/module, "Iteration N" + highlighted model text,
+    # tool calls with their arguments, "!" for problems), the same in verbose mode. The log
+    # file keeps the full detail, including tool outcomes and DEBUG records when verbose.
     root.addHandler(console_handler(logging.INFO))
     # Keep third-party debug noise (HTTP, git) out of verbose agent logs.
     for noisy in ("httpx", "httpcore", "openai", "anthropic", "google_genai", "git"):

@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Iterator
 
 from ..config import AgentConfig
-from ..console_log import file_only, tool_call, tool_result
+from ..console_log import file_only, tool_call
 from ..llm.base import ToolSpec
 
 logger = logging.getLogger(__name__)
@@ -104,34 +104,23 @@ class Tool:
 
             output = self.func(**kwargs)
         except (ToolError, OSError) as exc:
-            # Expected failures (bad input, missing files): no traceback needed.
-            logger.warning(
-                "<- %s failed: %s",
-                self.name,
-                _shorten(str(exc), LOG_OUTPUT_CHARS),
-                extra=tool_result(self.name, ok=False, error=_shorten(str(exc), LOG_OUTPUT_CHARS)),
+            # Expected failures (bad input, missing files): the model gets the message;
+            # only the log file records the outcome.
+            logger.info(
+                "<- %s failed: %s", self.name, _shorten(str(exc), LOG_OUTPUT_CHARS), extra=file_only()
             )
             return f"[Error]: {exc}"
         except Exception as exc:
+            # Unexpected exception: a bug in the tool, so it stays visible on the console.
             logger.error(
-                "<- %s raised %s: %s",
-                self.name,
-                type(exc).__name__,
-                _shorten(str(exc), LOG_OUTPUT_CHARS),
-                extra=tool_result(
-                    self.name, ok=False, error=f"{type(exc).__name__}: {_shorten(str(exc), LOG_OUTPUT_CHARS)}"
-                ),
+                "%s raised %s: %s", self.name, type(exc).__name__, _shorten(str(exc), LOG_OUTPUT_CHARS)
             )
             logger.debug("%s traceback", self.name, exc_info=True)
             return f"[Error]: Tool '{self.name}' failed: {exc}"
 
         problem = _reported_failure(output)
-        logger.info(
-            "<- %s: %s",
-            self.name,
-            _short_output(output),
-            extra=tool_result(self.name, ok=problem is None, error=problem or ""),
-        )
+        outcome = f"failed: {problem}" if problem else _short_output(output)
+        logger.info("<- %s %s", self.name, outcome, extra=file_only())
         logger.debug("%s output:\n%s", self.name, output)
         return output
 

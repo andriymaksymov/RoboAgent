@@ -5,12 +5,15 @@ a condensed view instead, driven by an optional ``kind`` attribute on the log re
 (pass it with ``extra=``):
 
 - ``KIND_LLM_TEXT``: text produced by the model, shown in full and highlighted.
-- ``KIND_TOOL_CALL``: a tool invocation, shown as the tool name only (``tool=...``).
-- ``KIND_TOOL_RESULT``: a tool's outcome, shown as "succeeded" / "failed" (``ok=...``).
+- ``KIND_TOOL_CALL``: a tool invocation with its (shortened) arguments, e.g.
+  ``-> read_file(path='a.txt')``.
 
 Records marked with ``file_only()`` are detail for the log file and never reach the
-console. Records without a ``kind`` are shown as their plain message. Warnings and errors are
-prefixed with ``!`` and colored. DEBUG records (verbose mode) are dimmed.
+console. Below WARNING, only the agent's own loggers (``agent.*``, ``roboagent``) reach the
+console, so library chatter such as "HTTP Request: POST ..." (logged by httpx, or httpx2
+inside the Anthropic SDK) stays in the log file. Records without a ``kind`` are shown as their plain
+message. Warnings and errors are prefixed with ``!`` and colored. DEBUG records (verbose
+mode) are dimmed.
 """
 
 import logging
@@ -20,12 +23,13 @@ from typing import TextIO
 
 KIND_LLM_TEXT = "llm_text"
 KIND_TOOL_CALL = "tool_call"
-KIND_TOOL_RESULT = "tool_result"
+
+# The agent's own loggers; any other logger reaches the console only from WARNING up.
+_OWN_LOGGERS = ("agent", "roboagent")
 
 _RESET = "\x1b[0m"
 _BRIGHT_CYAN = "\x1b[1;96m"
 _GREEN = "\x1b[32m"
-_RED = "\x1b[91m"
 _BRIGHT_RED = "\x1b[1;91m"
 _YELLOW = "\x1b[93m"
 _DIM = "\x1b[2m"
@@ -35,9 +39,15 @@ def file_only() -> dict:
     return {"file_only": True}
 
 
-class _SkipFileOnly(logging.Filter):
+class _ConsoleFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        return not getattr(record, "file_only", False)
+        if getattr(record, "file_only", False):
+            return False
+        return record.levelno >= logging.WARNING or _is_own(record.name)
+
+
+def _is_own(name: str) -> bool:
+    return any(name == prefix or name.startswith(prefix + ".") for prefix in _OWN_LOGGERS)
 
 
 def llm_text(text: str) -> dict:
@@ -46,10 +56,6 @@ def llm_text(text: str) -> dict:
 
 def tool_call(name: str) -> dict:
     return {"kind": KIND_TOOL_CALL, "tool": name}
-
-
-def tool_result(name: str, ok: bool, error: str = "") -> dict:
-    return {"kind": KIND_TOOL_RESULT, "tool": name, "ok": ok, "error": error}
 
 
 class ConsoleFormatter(logging.Formatter):
@@ -66,13 +72,7 @@ class ConsoleFormatter(logging.Formatter):
         if kind == KIND_LLM_TEXT:
             return self._paint(getattr(record, "llm_text", record.getMessage()), _BRIGHT_CYAN)
         if kind == KIND_TOOL_CALL:
-            return f"-> {record.tool}"
-        if kind == KIND_TOOL_RESULT:
-            if record.ok:
-                return self._paint("   succeeded", _GREEN)
-            # The failure detail is a warning/error: mark it like any other problem.
-            error = getattr(record, "error", "") or record.getMessage()
-            return self._paint(f"   failed  ! {error}", _RED)
+            return self._paint(record.getMessage(), _GREEN)
 
         message = record.getMessage()
         if record.exc_info and record.levelno >= logging.ERROR:
@@ -122,5 +122,5 @@ def console_handler(level: int, stream: TextIO | None = None) -> logging.Handler
     handler = logging.StreamHandler(stream)
     handler.setLevel(level)
     handler.setFormatter(ConsoleFormatter(color=_supports_color(stream)))
-    handler.addFilter(_SkipFileOnly())
+    handler.addFilter(_ConsoleFilter())
     return handler
