@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..console_log import file_only
-from .process import log_process_result, next_seq
+from .process import log_process_result, next_seq, split_budget, truncate
 from .registry import ToolError, tool
 
 logger = logging.getLogger(__name__)
@@ -160,9 +160,11 @@ def execute_python(
 
     log_process_result("execute_python", result, time.perf_counter() - started)
 
-    output = result.stdout
-    if result.stderr:
-        output += f"\n[stderr]:\n{result.stderr}"
+    stdout, stderr = result.stdout or "", result.stderr or ""
+    out_limit, err_limit = split_budget(len(stdout), len(stderr))
+    output = truncate(stdout, out_limit)
+    if stderr:
+        output += f"\n[stderr]:\n{truncate(stderr, err_limit)}"
 
     if result.returncode != 0:
         return f"[Exit code]: {result.returncode}\n{output.lstrip()}"

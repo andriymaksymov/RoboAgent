@@ -80,11 +80,11 @@ class TestRunnerAppliesThreshold:
         with caplog.at_level(logging.WARNING, logger="agent.llm.base"):
             agent.runner.run_agent("task", config, client)
         assert client.context_warning_tokens == 500
-        assert "LARGE CONTEXT" in caplog.text
+        assert "warning threshold 500" in caplog.text
 
     def test_quiet_below_configured_threshold(self, run_config, caplog):
         client = UsageClient(context_tokens=40_000)  # above the default, below the config
         config = dataclasses.replace(run_config, context_warning_tokens=50_000)
         with caplog.at_level(logging.WARNING, logger="agent.llm.base"):
             agent.runner.run_agent("task", config, client)
-        assert "LARGE CONTEXT" not in caplog.text
+        assert "warning threshold" not in caplog.text

@@ -8,6 +8,34 @@ from .registry import ToolError
 # instead of the workdir, e.g. '@agent/agent/plugin/foo.py'.
 AGENT_PREFIX = "@agent"
 
+# Output caps. Every tool result stays in the conversation for the rest of the run, so
+# tools return bounded output and tell the model how to get more.
+MAX_ENTRIES = 200  # listed files / directory entries
+MAX_MATCHES = 100  # content_search hits
+MAX_LINE_CHARS = 300  # a single line in search results
+MAX_TEXT_CHARS = 16_000  # read_file page, git_diff
+
+
+def cap_entries(entries: list[str], limit: int, hint: str) -> str:
+    """Join *entries* one per line, keeping the first *limit* and noting what was left out."""
+    text = "\n".join(entries[:limit])
+    if len(entries) > limit:
+        text += f"\n[... {len(entries) - limit} more not shown; {hint}]"
+    return text
+
+
+def clip_text(text: str, limit: int, hint: str) -> str:
+    """Keep the head of *text* (cut at a line break), noting how much was left out."""
+    if len(text) <= limit:
+        return text
+    cut = text.rfind("\n", 0, limit)
+    cut = cut if cut > 0 else limit
+    return f"{text[:cut]}\n[... {len(text) - cut} more chars not shown; {hint}]"
+
+
+def clip_line(line: str, limit: int = MAX_LINE_CHARS) -> str:
+    return line if len(line) <= limit else f"{line[:limit]}[... +{len(line) - limit} chars]"
+
 
 def _split_root(workdir: Path, user_path: str, agent_dir: Path | None) -> tuple[Path, str]:
     """Return the root directory a path refers to and the path relative to it."""

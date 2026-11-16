@@ -1,14 +1,13 @@
-import json
 import os
 from pathlib import Path
 
 from .registry import tool
-from .utils import resolve_dir
+from .utils import MAX_ENTRIES, cap_entries, resolve_dir
 
 
 @tool
 def folder_content(path: str, workdir: Path, agent_dir: Path | None) -> str:
-    """Return a list of all files and directories in the specified path with their names, sizes, and types. Ignore hidden files and directories.
+    """List the files and directories in a directory (not recursive; hidden entries are skipped). One entry per line: directories end with '/', files show their size in bytes. At most 200 entries.
 
     Args:
         path: Directory path relative to the workdir.
@@ -19,10 +18,11 @@ def folder_content(path: str, workdir: Path, agent_dir: Path | None) -> str:
             if entry.name.startswith("."):
                 continue
             try:
-                entry_size = entry.stat().st_size
-                entry_type = "directory" if entry.is_dir() else "file"
+                line = f"{entry.name}/" if entry.is_dir() else f"{entry.name}  {entry.stat().st_size}"
             except OSError:
                 continue
-            contents.append({"name": entry.name, "size": entry_size, "type": entry_type})
+            contents.append(line)
 
-    return json.dumps(contents)
+    if not contents:
+        return "Directory is empty."
+    return cap_entries(sorted(contents), MAX_ENTRIES, "list a subdirectory or use file_search")

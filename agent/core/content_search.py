@@ -1,11 +1,10 @@
-import json
 import logging
 import re
 from fnmatch import fnmatch
 from pathlib import Path
 
 from .registry import ToolError, tool
-from .utils import resolve_dir
+from .utils import MAX_MATCHES, cap_entries, clip_line, resolve_dir
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ def content_search(
     agent_dir: Path | None,
     file_pattern: str | None = None,
 ) -> str:
-    """Search file contents under a folder and its subfolders, similar to grep. Optionally filter searched files with a gitignore-style glob pattern.
+    """Search file contents under a folder and its subfolders, similar to grep. Returns one 'path:line: text' entry per matching line (at most 100). Optionally filter searched files with a gitignore-style glob pattern.
 
     Args:
         path: Directory to search, relative to the workdir.
@@ -32,7 +31,7 @@ def content_search(
         raise ToolError(f"Invalid search pattern '{query}': {exc}") from exc
 
     results = []
-    for candidate in root.rglob("*"):
+    for candidate in sorted(root.rglob("*")):
         if candidate.is_dir():
             continue
 
@@ -47,20 +46,11 @@ def content_search(
         try:
             with candidate.open("r", encoding="utf-8") as handle:
                 for line_number, line in enumerate(handle, start=1):
-                    submatches = [
-                        {"match": match.group(0), "start": match.start(), "end": match.end()}
-                        for match in pattern.finditer(line)
-                    ]
-                    if submatches:
-                        results.append(
-                            {
-                                "path": relative_path,
-                                "line_number": line_number,
-                                "line": line.rstrip("\n"),
-                                "submatches": submatches,
-                            }
-                        )
+                    if pattern.search(line):
+                        results.append(f"{relative_path}:{line_number}: {clip_line(line.strip())}")
         except UnicodeDecodeError:
             logger.debug("Skipping non-text file during content search: %s", candidate)
 
-    return json.dumps(results)
+    if not results:
+        return "No matches."
+    return cap_entries(results, MAX_MATCHES, "narrow 'query', 'path' or 'file_pattern'")

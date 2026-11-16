@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 120
 MAX_TIMEOUT = 600
-MAX_OUTPUT_CHARS = 20_000
+# Budget for stdout and stderr together in a tool result (logs keep the full output).
+MAX_OUTPUT_CHARS = 8_000
 
 _counter_lock = threading.Lock()
 _cmd_counter: int = 0
@@ -153,13 +154,27 @@ def log_process_result(
         logger.info("%s: stderr:\n%s", tool_name, truncate(stderr.rstrip(), 4000), extra=file_only())
 
 
+def split_budget(first: int, second: int, total: int = MAX_OUTPUT_CHARS) -> tuple[int, int]:
+    """Share *total* chars between two texts: a short one keeps everything, the rest goes to the other."""
+    if first + second <= total:
+        return first, second
+    half = total // 2
+    if first <= half:
+        return first, total - first
+    if second <= half:
+        return total - second, second
+    return half, total - half
+
+
 def format_result(result: subprocess.CompletedProcess[str], status: str | None = None) -> str:
-    """Render exit code, an optional one-line status and the (truncated) stdout/stderr."""
+    """Render exit code, an optional one-line status and stdout/stderr within one shared budget."""
+    stdout, stderr = result.stdout or "", result.stderr or ""
+    out_limit, err_limit = split_budget(len(stdout), len(stderr))
     output = f"[Exit code]: {result.returncode}\n"
     if status:
         output += f"[Status]: {status}\n"
-    if result.stdout:
-        output += f"[stdout]:\n{truncate(result.stdout)}\n"
-    if result.stderr:
-        output += f"[stderr]:\n{truncate(result.stderr)}\n"
+    if stdout:
+        output += f"[stdout]:\n{truncate(stdout, out_limit)}\n"
+    if stderr:
+        output += f"[stderr]:\n{truncate(stderr, err_limit)}\n"
     return output

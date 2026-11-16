@@ -45,7 +45,7 @@ RoboAgent/
 │       ├── file_replacer.py     # Replaces text in files
 │       ├── file_search.py       # Searches files by glob pattern
 │       ├── file_writer.py       # Writes files in the workdir
-│       ├── folder_content.py    # Lists directory contents as JSON
+│       ├── folder_content.py    # Lists directory contents (one entry per line)
 │       ├── format_code.py       # Formats Python code with ruff (ruff format)
 │       ├── git_add.py           # Stages files in a git repository
 │       ├── git_checkout.py      # Switches to or creates a branch (protected branches refused)
@@ -181,7 +181,7 @@ Available tools:
 - `pip_install(requirements_file=None, cwd=".", timeout=300)`
 - `execute_python(code)`
 - `run_command(command, cwd=".", timeout=120)` (only when `enable_run_command = true`)
-- `read_file(path)`
+- `read_file(path, offset=1, limit=300)`
 - `write_file(path, content)`
 - `replace_in_file(path, target_text, replacement_text)`
 - `folder_content(path)`
@@ -189,7 +189,7 @@ Available tools:
 - `content_search(path, query, file_pattern=None)`
 - `git_pull(repo_path)`
 - `git_status(repo_path)`
-- `git_diff(repo_path, rev=None)`
+- `git_diff(repo_path, rev=None, path=None, stat=False)`
 - `git_add(repo_path, pathspec)`
 - `git_restore(repo_path, pathspec, staged=False, source=None)`
 - `git_checkout(repo_path, branch, create=False, start_point=None)`
@@ -201,9 +201,18 @@ Available tools:
 
 These tools are intentionally narrow in scope so the agent can inspect and modify a project while staying within the configured workspace.
 
+### Output Limits
+
+Every tool result stays in the conversation for the rest of the run, so the tools return bounded output in a compact text format and say how to get the rest (limits in `agent/core/utils.py` and `agent/core/process.py`):
+
+- `read_file` returns up to 300 lines and about 16,000 characters per call. A file that fits is returned unchanged; otherwise a header such as `[Lines 1-300 of 812; next: read_file(path, offset=301)]` precedes the page. Lines carry no number prefixes, so the text can be passed to `replace_in_file` as is.
+- `content_search` returns at most 100 matches (lines clipped to 300 characters); `file_search`, `folder_content` and `git_ls_files` at most 200 entries.
+- `git_diff` returns about 16,000 characters; `stat=true` and `path` narrow large diffs.
+- `run_tests`, `lint`, `format_code`, `pip_*`, `run_command` and `execute_python` share an 8,000-character budget between stdout and stderr and keep the tail, where the summaries are. The log file keeps the full pytest output.
+
 ### Developer Tools and Restrictions
 
-The agent runs tests, lint and pip through dedicated tools with typed parameters instead of a free-form command line, so it cannot pass arbitrary flags. All of them run as `python -m <tool>` with the agent's interpreter (`agent/core/process.py`), return the exit code, a one-line status and the tail of the output, and share one behaviour: with `--verbose` and `agent_dir` set, each command is written to `@agent/logs/`. Nothing is saved to the vector memory automatically; the model saves deliberately with `memory_save`.
+The agent runs tests, lint and pip through dedicated tools with typed parameters instead of a free-form command line, so it cannot pass arbitrary flags. All of them run as `python -m <tool>` with the agent's interpreter (`agent/core/process.py`), return the exit code, a one-line status and the tail of the output (stdout and stderr share an 8,000-character budget), and share one behaviour: with `--verbose` and `agent_dir` set, each command is written to `@agent/logs/`. Nothing is saved to the vector memory automatically; the model saves deliberately with `memory_save`.
 
 - `run_tests` runs `pytest -q -rfE --tb=short`; paths and node ids must stay inside the run directory.
 - `lint` runs `ruff check --output-format concise` (optionally `--fix`); `format_code` runs `ruff format` (or `--diff` with `check=true`).
@@ -219,7 +228,7 @@ When the agent needs something these tools don't cover, it writes a narrow plugi
 The new search tools are split into separate modules:
 
 - `file_search` searches for files recursively using gitignore-style glob patterns such as `*.py`, `**/*.md`, or `agent/core/*.py`.
-- `content_search` performs grep-like recursive content search and returns structured matches including file path, line number, line text, and submatch offsets.
+- `content_search` performs grep-like recursive content search and returns one `path:line: text` entry per matching line.
 
 The implementation uses Python's standard library:
 
