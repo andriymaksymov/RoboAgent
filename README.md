@@ -25,6 +25,7 @@ RoboAgent/
 │   ├── __init__.py              # Exposes run_agent
 │   ├── branch_guard.py          # Refuses to start on protected branches (workdir and agent_dir)
 │   ├── config.py                # Loads .env (LLM_* settings) and the TOML run config
+│   ├── console_log.py           # Compact colored console log view (full detail goes to the log file)
 │   ├── plugin_loader.py         # Validates and hot-reloads plugin tools
 │   ├── runner.py                # Main agent loop and tool dispatch
 │   ├── system_prompt.py         # Loads the system prompt file
@@ -39,13 +40,13 @@ RoboAgent/
 │   └── core/
 │       ├── __init__.py          # Imports the built-in tool modules (registers them)
 │       ├── content_search.py    # Grep-like content search in folders/subfolders
-│       ├── dev_tools.py         # run_tests (pytest), lint/format_code (ruff), pip_list/pip_show/pip_install
 │       ├── execute_python.py    # Runs pure-computation Python snippets (process creation blocked)
 │       ├── file_reader.py       # Reads files from the workdir
 │       ├── file_replacer.py     # Replaces text in files
 │       ├── file_search.py       # Searches files by glob pattern
 │       ├── file_writer.py       # Writes files in the workdir
 │       ├── folder_content.py    # Lists directory contents as JSON
+│       ├── format_code.py       # Formats Python code with ruff (ruff format)
 │       ├── git_add.py           # Stages files in a git repository
 │       ├── git_checkout.py      # Switches to or creates a branch (protected branches refused)
 │       ├── git_clone.py         # Clones a local repository (workdir or @agent) into the workdir
@@ -56,10 +57,15 @@ RoboAgent/
 │       ├── git_pull.py          # Pulls remote changes
 │       ├── git_restore.py       # Discards or unstages uncommitted changes
 │       ├── git_status.py        # Shows repository status
+│       ├── lint.py              # Lints Python code with ruff (ruff check)
+│       ├── pip_install.py       # Installs from a requirements file or the project itself
+│       ├── pip_list.py          # Lists installed packages
+│       ├── pip_show.py          # Shows an installed package's details
 │       ├── process.py           # Shared subprocess runner: `python -m <tool>`, verbose logs, memory auto-save
 │       ├── registry.py          # @tool decorator, Tool, ToolRegistry, central error handling/logging
 │       ├── run_command.py       # Generic allow-listed command runner (off unless enable_run_command)
-│       └── utils.py             # Shared path resolution ('@agent/' root) and git repository helpers
+│       ├── run_tests.py         # Runs the test suite with pytest
+│       └── utils.py             # Shared helpers: path resolution ('@agent/' root), run dir/paths for dev tools, git repo access
 │   └── plugin/
 │       ├── __init__.py          # Loads every plugin module at import time
 │       └── echo.py              # Example plugin tool and template

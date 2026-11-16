@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Iterator
 
 from ..config import AgentConfig
+from ..console_log import file_only, tool_call, tool_result
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +73,11 @@ class Tool:
         }
 
     def invoke(self, arguments: Dict[str, Any], config: AgentConfig) -> str:
-        logger.info("-> %s(%s)", self.name, _short_args(arguments))
-        logger.debug("%s arguments: %s", self.name, json.dumps(arguments, default=str))
+        logger.info("-> %s(%s)", self.name, _short_args(arguments), extra=tool_call(self.name))
+        logger.info(
+            "%s arguments: %s", self.name, json.dumps(arguments, default=str, ensure_ascii=False),
+            extra=file_only(),
+        )
         try:
             missing = [name for name in self.required if name not in arguments]
             if missing:
@@ -90,14 +94,33 @@ class Tool:
             output = self.func(**kwargs)
         except (ToolError, OSError) as exc:
             # Expected failures (bad input, missing files): no traceback needed.
-            logger.warning("<- %s failed: %s", self.name, _shorten(str(exc), LOG_OUTPUT_CHARS))
+            logger.warning(
+                "<- %s failed: %s",
+                self.name,
+                _shorten(str(exc), LOG_OUTPUT_CHARS),
+                extra=tool_result(self.name, ok=False, error=_shorten(str(exc), LOG_OUTPUT_CHARS)),
+            )
             return f"[Error]: {exc}"
         except Exception as exc:
-            logger.error("<- %s raised %s: %s", self.name, type(exc).__name__, _shorten(str(exc), LOG_OUTPUT_CHARS))
+            logger.error(
+                "<- %s raised %s: %s",
+                self.name,
+                type(exc).__name__,
+                _shorten(str(exc), LOG_OUTPUT_CHARS),
+                extra=tool_result(
+                    self.name, ok=False, error=f"{type(exc).__name__}: {_shorten(str(exc), LOG_OUTPUT_CHARS)}"
+                ),
+            )
             logger.debug("%s traceback", self.name, exc_info=True)
             return f"[Error]: Tool '{self.name}' failed: {exc}"
 
-        logger.info("<- %s: %s", self.name, _short_output(output))
+        problem = _reported_failure(output)
+        logger.info(
+            "<- %s: %s",
+            self.name,
+            _short_output(output),
+            extra=tool_result(self.name, ok=problem is None, error=problem or ""),
+        )
         logger.debug("%s output:\n%s", self.name, output)
         return output
 
@@ -276,6 +299,25 @@ def _shorten(text: str, limit: int) -> str:
 
 def _short_args(arguments: Dict[str, Any]) -> str:
     return ", ".join(f"{key}={_shorten(repr(value), LOG_VALUE_CHARS)}" for key, value in arguments.items())
+
+
+_EXIT_CODE = re.compile(r"^\[Exit code\]: (-?\d+)")
+_STATUS = re.compile(r"^\[Status\]: (.+)$", re.MULTILINE)
+
+
+def _reported_failure(output: str) -> str | None:
+    """Return a short reason when a tool returned normally but reports a failure.
+
+    Recognised: an ``[Error]`` reply, or a non-zero ``[Exit code]`` (e.g. failing tests,
+    a Python snippet that raised), described by its ``[Status]`` line when present.
+    """
+    if output.startswith("[Error]"):
+        return _shorten(output.removeprefix("[Error]").lstrip(": "), LOG_OUTPUT_CHARS)
+    match = _EXIT_CODE.match(output)
+    if match and match.group(1) != "0":
+        status = _STATUS.search(output)
+        return f"exit code {match.group(1)}" + (f" ({status.group(1)})" if status else "")
+    return None
 
 
 def _short_output(output: str) -> str:

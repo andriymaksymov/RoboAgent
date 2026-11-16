@@ -21,10 +21,13 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
 from .. import memory_backend as _memory_backend
+from ..console_log import file_only
+from .process import log_process_result
 from .registry import ToolError, tool
 
 logger = logging.getLogger(__name__)
@@ -225,6 +228,13 @@ def execute_python(
         except Exception as exc:  # noqa: BLE001  # pragma: no cover
             logger.debug("execute_python: could not write log file: %s", exc)
 
+    logger.info(
+        "execute_python: running snippet (%d lines)\n  interpreter: %s\n  cwd: %s\n  timeout: 20s\n"
+        "--- code ---\n%s\n--- end code ---",
+        len(code.splitlines()), sys.executable, workdir, code.rstrip(),
+        extra=file_only(),
+    )
+    started = time.perf_counter()
     # The snippet is passed on stdin and run under an audit hook that blocks process creation.
     result = subprocess.run(
         [sys.executable, "-c", _PRELUDE],
@@ -239,6 +249,8 @@ def execute_python(
         check=False,
     )
 
+    log_process_result("execute_python", result, time.perf_counter() - started)
+
     output = result.stdout
     if result.stderr:
         output += f"\n[stderr]:\n{result.stderr}"
@@ -247,4 +259,6 @@ def execute_python(
     if result.returncode == 0:
         _auto_save_to_memory(code)
 
+    if result.returncode != 0:
+        return f"[Exit code]: {result.returncode}\n{output.lstrip()}"
     return output if output else "[Code executed successfully without output]"

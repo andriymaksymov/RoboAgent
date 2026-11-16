@@ -3,6 +3,7 @@ import logging
 from . import plugin as _plugin  # noqa: F401  side-effect: registers all plugin tools
 from .branch_guard import find_protected_branch_repos
 from .config import AgentConfig, load_config
+from .console_log import llm_text
 from .core import REGISTRY
 from .llm import LLMClient, LLMError, ToolResult, ToolSpec, create_client
 from .plugin_loader import PLUGINS, PluginEvent, PluginReport
@@ -43,7 +44,8 @@ def run_agent(
                 return _with_report(response.text, report)
 
             if response.text:
-                logger.info("Model:📝 %s", response.text.strip())
+                text = response.text.strip()
+                logger.info("Model: %s", text, extra=llm_text(text))
             results = [
                 ToolResult(call, REGISTRY.invoke(call.name, call.arguments, config))
                 for call in response.tool_calls

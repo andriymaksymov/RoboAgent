@@ -6,6 +6,7 @@ from pathlib import Path
 
 from agent import run_agent
 from agent.config import load_config
+from agent.console_log import console_handler, llm_text
 from agent.llm import LLMError, create_client
 
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -13,7 +14,7 @@ _LOGS_DIR = Path(__file__).parent / "logs"
 
 
 def _setup_file_logger(prompt_file: Path, verbose: bool) -> Path:
-    """Attach a FileHandler to the root logger that mirrors all console output.
+    """Attach a FileHandler to the root logger with the full, timestamped log.
 
     The log file is placed in ``<agent_root>/logs/`` and named
     ``<prompt_stem>_<YYYYMMDD_HHMMSS>.log``.  Returns the resolved log path.
@@ -62,10 +63,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format=_LOG_FORMAT,
-    )
+    level = logging.DEBUG if args.verbose else logging.INFO
+    root = logging.getLogger()
+    root.setLevel(level)
+    # Console: compact view (no timestamp/module, highlighted model text, tool name +
+    # succeeded/failed, "!" for problems), the same in verbose mode. The log file keeps
+    # the full detail, including DEBUG records when verbose.
+    root.addHandler(console_handler(logging.INFO))
     # Keep third-party debug noise (HTTP, git) out of verbose agent logs.
     for noisy in ("httpx", "httpcore", "openai", "anthropic", "google_genai", "git"):
         logging.getLogger(noisy).setLevel(logging.INFO if args.verbose else logging.WARNING)

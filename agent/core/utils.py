@@ -42,6 +42,26 @@ def resolve_dir(workdir: Path, path: str, agent_dir: Path | None = None) -> Path
     return directory
 
 
+def run_dir(workdir: Path, cwd: str, agent_dir: Path | None) -> Path:
+    """Resolve the directory a developer tool runs in ('.' when *cwd* is empty)."""
+    return resolve_dir(workdir, cwd or ".", agent_dir)
+
+
+def relative_paths(run_cwd: Path, paths: list[str] | None, *, node_ids: bool = False) -> list[str]:
+    """Validate paths (or pytest node ids) against the run directory and return them relative to it."""
+    result = []
+    for raw in paths or []:
+        if not isinstance(raw, str) or not raw.strip():
+            raise ToolError("Paths must be non-empty strings.")
+        if raw.startswith("-"):
+            raise ToolError(f"Invalid path '{raw}': options are not accepted here.")
+        file_part, sep, node = raw.partition("::") if node_ids else (raw, "", "")
+        resolved = resolve_in_workdir(run_cwd, file_part)
+        relative = resolved.relative_to(run_cwd.resolve()).as_posix() if resolved != run_cwd.resolve() else "."
+        result.append(f"{relative}{sep}{node}")
+    return result
+
+
 def open_repo(workdir: Path, repo_path: str = ".", agent_dir: Path | None = None) -> Repo:
     resolved_path = resolve_in_workdir(workdir, repo_path, agent_dir)
     try:

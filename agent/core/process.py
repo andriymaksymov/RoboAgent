@@ -10,10 +10,12 @@ import logging
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
 from .. import memory_backend as _memory_backend
+from ..console_log import file_only
 from .registry import ToolError
 
 logger = logging.getLogger(__name__)
@@ -125,9 +127,16 @@ def run_module(
         except Exception as exc:  # noqa: BLE001  # pragma: no cover
             logger.debug("%s: could not write log file: %s", tool_name, exc)
 
+    argv = [sys.executable, "-m", program, *program_args]
+    logger.info(
+        "%s: running %s\n  interpreter: %s\n  argv: %s\n  cwd: %s (%s)\n  timeout: %ss",
+        tool_name, " ".join(command), sys.executable, argv, run_cwd, cwd_label, seconds,
+        extra=file_only(),
+    )
+    started = time.perf_counter()
     try:
         result = subprocess.run(
-            [sys.executable, "-m", program, *program_args],
+            argv,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -137,11 +146,42 @@ def run_module(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
+        logger.info("%s: timed out after %ss", tool_name, seconds, extra=file_only())
         raise ToolError(f"Command timed out after {seconds}s.") from exc
+
+    log_process_result(tool_name, result, time.perf_counter() - started, full_output=program == "pytest")
 
     if result.returncode == 0 and save_to_memory:
         auto_save_to_memory(tool_name, command, cwd_label, seconds)
     return result
+
+
+def log_process_result(
+    tool_name: str,
+    result: subprocess.CompletedProcess[str],
+    elapsed: float,
+    *,
+    full_output: bool = False,
+) -> None:
+    """Record a finished subprocess in the log file (not on the console).
+
+    Always logs exit code, duration and output sizes. With *full_output* (e.g. pytest
+    test results) stdout and stderr are logged in full; otherwise only stderr of a failed
+    run is logged, truncated.
+    """
+    stdout, stderr = result.stdout or "", result.stderr or ""
+    logger.info(
+        "%s: exit code %s after %.2fs (stdout %d chars, stderr %d chars)",
+        tool_name, result.returncode, elapsed, len(stdout), len(stderr),
+        extra=file_only(),
+    )
+    if full_output:
+        if stdout.strip():
+            logger.info("%s: stdout:\n%s", tool_name, stdout.rstrip(), extra=file_only())
+        if stderr.strip():
+            logger.info("%s: stderr:\n%s", tool_name, stderr.rstrip(), extra=file_only())
+    elif result.returncode != 0 and stderr.strip():
+        logger.info("%s: stderr:\n%s", tool_name, truncate(stderr.rstrip(), 4000), extra=file_only())
 
 
 def format_result(result: subprocess.CompletedProcess[str], status: str | None = None) -> str:
