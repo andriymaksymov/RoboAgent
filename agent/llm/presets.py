@@ -30,7 +30,7 @@ PROVIDERS: dict[str, ProviderPreset] = {
     preset.name: preset
     for preset in (
         ProviderPreset("openai", "openai_client:OpenAIClient", model="gpt-5.4"),
-        ProviderPreset("anthropic", "claude_client:ClaudeClient", model="claude-sonnet-4-6"),
+        ProviderPreset("anthropic", "claude_client:ClaudeClient", model="claude-opus-5-5"),
         ProviderPreset("gemini", "gemini_client:GeminiClient", model="gemini-2.5-pro"),
         # Any OpenAI-compatible server (vLLM, Ollama, llama.cpp, LM Studio, ...).
         ProviderPreset(

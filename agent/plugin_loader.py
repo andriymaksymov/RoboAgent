@@ -166,42 +166,4 @@ class PluginLoader:
         return PluginEvent(stem, "removed", tools=tools)
 
 
-class PluginReport:
-    """Collects the plugin events of one agent run for its final summary."""
-
-    def __init__(self, failures_at_start: dict[str, str] | None = None) -> None:
-        self._startup_failures = dict(failures_at_start or {})
-        self._events: list[PluginEvent] = []
-
-    def add(self, events: list[PluginEvent]) -> None:
-        self._events.extend(events)
-
-    def summary(self, current_failures: dict[str, str]) -> str:
-        """One line per plugin touched in this run, with its final state."""
-        last: dict[str, PluginEvent] = {}
-        failed_attempts: dict[str, int] = {}
-        for event in self._events:
-            last[event.module] = event
-            if event.status == "failed":
-                failed_attempts[event.module] = failed_attempts.get(event.module, 0) + 1
-
-        lines = []
-        for module, event in last.items():
-            line = f"- {event.describe()}"
-            attempts = failed_attempts.get(module, 0)
-            if event.status != "failed" and attempts:
-                line += f" (after {attempts} failed attempt(s))"
-            lines.append(line)
-        for module, error in self._startup_failures.items():
-            if module not in last and module in current_failures:
-                lines.append(f"- '{module}' failed to load at startup (not loaded): {error}")
-
-        if not lines:
-            return ""
-        header = "[Self-improvement]: plugin tools changed during this run"
-        if current_failures:
-            header += f"; {len(current_failures)} plugin(s) are still broken"
-        return header + ":\n" + "\n".join(lines)
-
-
 PLUGINS = PluginLoader()

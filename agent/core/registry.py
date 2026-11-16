@@ -30,6 +30,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator
 
 from ..config import AgentConfig
 from ..console_log import file_only, tool_call, tool_result
+from ..llm.base import ToolSpec
 
 logger = logging.getLogger(__name__)
 
@@ -57,18 +58,28 @@ class Tool:
         return self.enabled_by is None or bool(getattr(config, self.enabled_by, False))
 
     @property
+    def spec(self) -> ToolSpec:
+        return ToolSpec(
+            name=self.name,
+            description=self.description,
+            parameters={
+                "type": "object",
+                "properties": self.properties,
+                "required": list(self.required),
+                "additionalProperties": False,
+            },
+        )
+
+    @property
     def schema(self) -> Dict[str, Any]:
+        """OpenAI Chat Completions style ``{"type": "function", ...}`` schema."""
+        spec = self.spec
         return {
             "type": "function",
             "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": self.properties,
-                    "required": list(self.required),
-                    "additionalProperties": False,
-                },
+                "name": spec.name,
+                "description": spec.description,
+                "parameters": spec.parameters,
             },
         }
 
@@ -176,9 +187,9 @@ class ToolRegistry:
         """Schemas of all registered tools, including config-disabled ones."""
         return [item.schema for item in self._tools.values()]
 
-    def schemas_for(self, config: AgentConfig) -> list[Dict[str, Any]]:
-        """Schemas of the tools enabled by *config*; this is what the model is offered."""
-        return [item.schema for item in self._tools.values() if item.is_enabled(config)]
+    def schemas_for(self, config: AgentConfig) -> list[ToolSpec]:
+        """Specs of the tools enabled by *config*; this is what the model is offered."""
+        return [item.spec for item in self._tools.values() if item.is_enabled(config)]
 
     def __contains__(self, name: str) -> bool:
         return name in self._tools

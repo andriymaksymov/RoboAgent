@@ -14,7 +14,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from .llm.base import LLMSettings
+from .llm.base import DEFAULT_CONTEXT_WARNING_TOKENS, LLMSettings
 from .llm.presets import DEFAULT_PROVIDER, resolve_settings
 
 DEFAULTS: dict[str, Any] = {
@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
     "protected_branches": ["main"],
     "allowed_commands": ["pytest", "pip", "ruff"],
     "enable_run_command": False,
+    "context_warning_tokens": DEFAULT_CONTEXT_WARNING_TOKENS,
 }
 OPTIONAL_KEYS = {"model", "agent_dir"}
 
@@ -45,6 +46,8 @@ class AgentConfig:
     # Offer the generic run_command tool. Off by default: the dedicated tools (run_tests,
     # lint, format_code, pip_*) cover the usual needs, and the agent can add plugins.
     enable_run_command: bool = False
+    # A request whose prompt exceeds this many tokens logs a large-context warning.
+    context_warning_tokens: int = DEFAULT_CONTEXT_WARNING_TOKENS
 
     @property
     def provider(self) -> str:
@@ -75,6 +78,13 @@ def _string_tuple(value: Any, key: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _positive_int(value: Any, key: str) -> int:
+    # bool is an int subclass; 'true' is not a valid count.
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"'{key}' must be a positive integer")
+    return value
+
+
 def load_config(config_file: Path | None = None, *, verbose: bool = False) -> AgentConfig:
     load_dotenv()
 
@@ -85,9 +95,8 @@ def load_config(config_file: Path | None = None, *, verbose: bool = False) -> Ag
         settings.update(_read_config_file(config_file))
         base_dir = config_file.parent
 
-    max_iterations = settings["max_iterations"]
-    if not isinstance(max_iterations, int) or max_iterations <= 0:
-        raise ValueError("'max_iterations' must be a positive integer")
+    max_iterations = _positive_int(settings["max_iterations"], "max_iterations")
+    context_warning_tokens = _positive_int(settings["context_warning_tokens"], "context_warning_tokens")
 
     provider = settings["provider"]
     if not isinstance(provider, str):
@@ -122,5 +131,6 @@ def load_config(config_file: Path | None = None, *, verbose: bool = False) -> Ag
         agent_dir=agent_dir,
         verbose=verbose,
         enable_run_command=enable_run_command,
+        context_warning_tokens=context_warning_tokens,
     )
 

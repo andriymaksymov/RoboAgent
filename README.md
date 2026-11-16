@@ -27,8 +27,7 @@ RoboAgent/
 │   ├── config.py                # Loads .env (LLM_* settings) and the TOML run config
 │   ├── console_log.py           # Compact colored console log view (full detail goes to the log file)
 │   ├── plugin_loader.py         # Validates and hot-reloads plugin tools
-│   ├── runner.py                # Main agent loop and tool dispatch
-│   ├── system_prompt.py         # Loads the system prompt file
+│   ├── runner.py                # Main agent loop, tool dispatch and the per-run plugin report
 │   ├── llm/
 │   │   ├── __init__.py          # create_client(): picks the backend for the provider
 │   │   ├── base.py              # LLMClient interface, ToolSpec/ToolCall/ToolResult/LLMResponse
@@ -40,6 +39,7 @@ RoboAgent/
 │   └── core/
 │       ├── __init__.py          # Imports the built-in tool modules (registers them)
 │       ├── content_search.py    # Grep-like content search in folders/subfolders
+│       ├── _sandbox.py          # Child-process entry point for execute_python (audit hook)
 │       ├── execute_python.py    # Runs pure-computation Python snippets (process creation blocked)
 │       ├── file_reader.py       # Reads files from the workdir
 │       ├── file_replacer.py     # Replaces text in files
@@ -61,7 +61,7 @@ RoboAgent/
 │       ├── pip_install.py       # Installs from a requirements file or the project itself
 │       ├── pip_list.py          # Lists installed packages
 │       ├── pip_show.py          # Shows an installed package's details
-│       ├── process.py           # Shared subprocess runner: `python -m <tool>`, verbose logs, memory auto-save
+│       ├── process.py           # Shared subprocess runner: `python -m <tool>`, verbose logs
 │       ├── registry.py          # @tool decorator, Tool, ToolRegistry, central error handling/logging
 │       ├── run_command.py       # Generic allow-listed command runner (off unless enable_run_command)
 │       ├── run_tests.py         # Runs the test suite with pytest
@@ -94,6 +94,8 @@ Configuration is split in two:
   - `workdir` (default: `./workspace`): the only directory the tools may access; it is created if missing
   - `system_prompt` (default: `./prompts/system.md`)
   - `max_iterations` (default: `20`)
+  - `context_warning_tokens` (default: `32768`): a request whose prompt exceeds this many tokens logs a large-context warning
+  - `context_warning_tokens` (default: `32768`): a request whose prompt exceeds this many tokens logs a large-context warning
   - `protected_branches` (default: `["main"]`): the agent refuses to start if a repository in the workdir (the workdir itself or a direct subfolder) is on one of these branches
   - `enable_run_command` (default: `false`): offer the generic `run_command` tool. While off, it is hidden from the model and calls to it are refused; the dedicated tools and plugins cover the usual needs
   - `allowed_commands` (default: `["pytest", "pip", "ruff"]`): tools `run_command` may execute when enabled; each runs as `python -m <tool>` with the agent's interpreter
@@ -201,7 +203,7 @@ These tools are intentionally narrow in scope so the agent can inspect and modif
 
 ### Developer Tools and Restrictions
 
-The agent runs tests, lint and pip through dedicated tools with typed parameters instead of a free-form command line, so it cannot pass arbitrary flags. All of them run as `python -m <tool>` with the agent's interpreter (`agent/core/process.py`), return the exit code, a one-line status and the tail of the output, and share two behaviours: with `--verbose` and `agent_dir` set, each command is written to `@agent/logs/`, and successful test runs and installs are auto-saved to the vector memory.
+The agent runs tests, lint and pip through dedicated tools with typed parameters instead of a free-form command line, so it cannot pass arbitrary flags. All of them run as `python -m <tool>` with the agent's interpreter (`agent/core/process.py`), return the exit code, a one-line status and the tail of the output, and share one behaviour: with `--verbose` and `agent_dir` set, each command is written to `@agent/logs/`. Nothing is saved to the vector memory automatically; the model saves deliberately with `memory_save`.
 
 - `run_tests` runs `pytest -q -rfE --tb=short`; paths and node ids must stay inside the run directory.
 - `lint` runs `ruff check --output-format concise` (optionally `--fix`); `format_code` runs `ruff format` (or `--diff` with `check=true`).
@@ -327,6 +329,7 @@ max_iterations = 20
 protected_branches = ["main"]
 enable_run_command = false   # generic run_command tool, off by default
 allowed_commands = ["pytest", "pip", "ruff"]
+context_warning_tokens = 32768   # warn when a request's prompt exceeds this
 ```
 
 ## Usage

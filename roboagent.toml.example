@@ -28,5 +28,9 @@ enable_run_command = false
 # Tools run_command may execute when enabled (each runs as `python -m <tool>`).
 allowed_commands = ["pytest", "pip", "ruff"]
 
+# Log a warning when a single request's prompt exceeds this many tokens
+# (a hint to compact the context or split the task).
+context_warning_tokens = 32768
+
 # Optional: override the provider's model (preset / LLM_*_MODEL) for this run profile.
 

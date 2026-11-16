@@ -18,6 +18,6 @@ def pip_list(workdir: Path, verbose: bool, agent_dir: Path | None, outdated: boo
         command.append("--outdated")
     result = run_module(
         "pip_list", command, run_cwd=workdir, cwd_label=".", timeout=None,
-        verbose=verbose, agent_dir=agent_dir, save_to_memory=False,
+        verbose=verbose, agent_dir=agent_dir,
     )
     return format_result(result)

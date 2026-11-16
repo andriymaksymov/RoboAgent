@@ -31,7 +31,7 @@ def format_code(
 
     result = run_module(
         "format_code", command, run_cwd=run_cwd, cwd_label=cwd, timeout=None,
-        verbose=verbose, agent_dir=agent_dir, save_to_memory=False,
+        verbose=verbose, agent_dir=agent_dir,
     )
     if check:
         status = {0: "already formatted", 1: "files would be reformatted"}.get(result.returncode, "ruff error")

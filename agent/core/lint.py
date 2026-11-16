@@ -31,7 +31,7 @@ def lint(
 
     result = run_module(
         "lint", command, run_cwd=run_cwd, cwd_label=cwd, timeout=None,
-        verbose=verbose, agent_dir=agent_dir, save_to_memory=False,
+        verbose=verbose, agent_dir=agent_dir,
     )
     status = {0: "no issues", 1: "issues found"}.get(result.returncode, "ruff error")
     return format_result(result, status)

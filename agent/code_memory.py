@@ -25,17 +25,25 @@ Usage
 >>> results = mem.search_snippets("how to find an element in a sorted list")
 >>> for s in results:
 ...     print(s.title, f"(similarity={s.similarity:.2f})")
+
+The ``memory_save`` / ``memory_search`` plugins use :func:`get_memory`, which opens the
+shared store at :data:`MEMORY_STORE_PATH`; tests monkeypatch
+``agent.code_memory.get_memory`` to return an ephemeral ``CodeMemory``.
 """
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
 import chromadb
 
 # Name of the ChromaDB collection used by default.
 COLLECTION_NAME: str = "code_snippets"
+
+# Default location of the agent's shared persistent store (see :func:`get_memory`).
+MEMORY_STORE_PATH: str = str(Path.home() / ".roboagent" / "chroma_store")
 
 
 # ---------------------------------------------------------------------------
@@ -250,3 +258,12 @@ class CodeMemory:
         snippet_id : The UUID4 string returned by :meth:`save_snippet`.
         """
         self._collection.delete(ids=[snippet_id])
+
+
+def get_memory() -> CodeMemory:
+    """Return a :class:`CodeMemory` for the agent's shared store at :data:`MEMORY_STORE_PATH`.
+
+    A new client object is created on every call; ChromaDB's ``PersistentClient``
+    is thread-safe and re-opens the same on-disk database automatically.
+    """
+    return CodeMemory(path=MEMORY_STORE_PATH)

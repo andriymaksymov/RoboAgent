@@ -15,6 +15,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Default prompt size (tokens) above which a request logs a large-context warning.
+DEFAULT_CONTEXT_WARNING_TOKENS = 32_768
+
 
 class LLMError(Exception):
     """An LLM request failed or returned an unusable response."""
@@ -86,7 +89,8 @@ class LLMClient(ABC):
 
     # A single request whose prompt (the whole conversation sent) exceeds this many tokens
     # logs a warning: a hint that the context should be compacted or the task split.
-    context_warning_tokens: int = 32_768
+    # The runner sets it per run from ``AgentConfig.context_warning_tokens``.
+    context_warning_tokens: int = DEFAULT_CONTEXT_WARNING_TOKENS
 
     def __init__(self, settings: LLMSettings) -> None:
         self.settings = settings
@@ -120,7 +124,7 @@ class LLMClient(ABC):
         self.last_context_tokens = max(0, context_tokens if context_tokens is not None else input_tokens)
         if self.last_context_tokens > self.context_warning_tokens:
             logger.warning(
-                "!!! LARGE CONTEXT !!! request used %d input tokens (warning threshold %d)",
+                "Request used %d input tokens (warning threshold %d)",
                 self.last_context_tokens,
                 self.context_warning_tokens,
             )

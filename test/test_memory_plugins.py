@@ -1,7 +1,7 @@
 """Tests for the memory_save and memory_search plugin tools.
 
 All tests use an ephemeral (in-memory) CodeMemory so **no files are written to
-disk**.  The shared ``agent.memory_backend.get_memory`` factory is monkeypatched
+disk**.  The shared ``agent.code_memory.get_memory`` factory is monkeypatched
 for every test that exercises the plugin functions at runtime, ensuring full
 isolation between test cases.
 
@@ -140,7 +140,7 @@ class TestMemoryRoundTrip:
     def _isolated_store(self, monkeypatch):
         """Route both tools to the same ephemeral store for the duration of the test."""
         mem = _ephemeral()
-        monkeypatch.setattr("agent.memory_backend.get_memory", lambda: mem)
+        monkeypatch.setattr("agent.code_memory.get_memory", lambda: mem)
         self.mem = mem
 
     def test_full_round_trip(self):
@@ -220,7 +220,7 @@ class TestMemoryRoundTrip:
 class TestMemorySaveRuntime:
     @pytest.fixture(autouse=True)
     def _isolated_store(self, monkeypatch):
-        monkeypatch.setattr("agent.memory_backend.get_memory", lambda: _ephemeral())
+        monkeypatch.setattr("agent.code_memory.get_memory", lambda: _ephemeral())
 
     def test_returns_string(self):
         from agent.plugin.memory_save import memory_save
@@ -286,7 +286,7 @@ class TestMemorySearchRuntime:
             "import requests\ndef get(url): return requests.get(url).json()",
             ["python", "http"],
         )
-        monkeypatch.setattr("agent.memory_backend.get_memory", lambda: mem)
+        monkeypatch.setattr("agent.code_memory.get_memory", lambda: mem)
 
     def test_returns_string(self):
         from agent.plugin.memory_search import memory_search
@@ -341,7 +341,7 @@ class TestMemorySearchRuntime:
         mem = _ephemeral()
         for i in range(5):
             mem.save_snippet(f"Snippet {i}", "desc", f"x = {i}", [])
-        monkeypatch.setattr("agent.memory_backend.get_memory", lambda: mem)
+        monkeypatch.setattr("agent.code_memory.get_memory", lambda: mem)
 
         from agent.plugin.memory_search import memory_search
 

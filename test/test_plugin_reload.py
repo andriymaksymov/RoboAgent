@@ -9,7 +9,8 @@ import agent.runner
 from agent.config import AgentConfig
 from agent.core.registry import REGISTRY, ToolRegistry
 from agent.llm.base import LLMClient, LLMResponse, LLMSettings, ToolCall, ToolResult, ToolSpec
-from agent.plugin_loader import PluginLoader, PluginReport
+from agent.plugin_loader import PluginLoader
+from agent.runner import PluginReport
 
 GREET_V1 = '''
 from agent.core.registry import tool

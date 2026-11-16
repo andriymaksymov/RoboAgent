@@ -1,17 +1,13 @@
-"""Tests for verbose-mode file logging and auto-save-to-memory in execute_python / run_command.
+"""Tests for verbose-mode file logging in execute_python / run_command.
 
 Coverage goals
 --------------
 * execute_python writes a .py log file when verbose=True and agent_dir is set.
 * execute_python does NOT write a log file when verbose=False.
 * execute_python does NOT write a log file when agent_dir is None (even if verbose=True).
-* execute_python auto-saves a non-trivial successful snippet to vector memory.
-* execute_python does NOT auto-save trivial one-liners.
-* execute_python does NOT auto-save when the snippet raises an exception.
+* Neither tool saves anything to vector memory automatically.
 * run_command writes a .txt log file when verbose=True and agent_dir is set.
 * run_command does NOT write a log file when verbose=False.
-* run_command auto-saves a successful command to vector memory.
-* run_command does NOT auto-save when exit code != 0.
 * AgentConfig.verbose propagates correctly from load_config(verbose=True).
 """
 
@@ -44,10 +40,10 @@ def workdir(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def mock_memory():
-    """Return a mock CodeMemory instance; patch memory_backend.get_memory."""
+    """Return a mock CodeMemory instance; patch code_memory.get_memory."""
     mem = MagicMock()
     mem.save_snippet.return_value = "fake-uuid"
-    with patch("agent.memory_backend.get_memory", return_value=mem):
+    with patch("agent.code_memory.get_memory", return_value=mem):
         yield mem
 
 
@@ -120,66 +116,6 @@ class TestExecutePythonVerboseLogging:
             )
         log_files = list((agent_dir / "logs").glob("exec_python_*.py"))
         assert len(log_files) == 3
-
-
-# ---------------------------------------------------------------------------
-# execute_python – auto-save to vector memory
-# ---------------------------------------------------------------------------
-
-
-class TestExecutePythonAutoSave:
-    def test_non_trivial_success_is_saved(self, workdir, agent_dir, mock_memory):
-        from agent.core.execute_python import execute_python
-
-        code = (
-            "import math\n"
-            "result = math.sqrt(16)\n"
-            "assert result == 4.0\n"
-            "print('ok')\n"
-        )
-        execute_python(code=code, workdir=workdir, verbose=False, agent_dir=None)
-        mock_memory.save_snippet.assert_called_once()
-        call_kwargs = mock_memory.save_snippet.call_args
-        assert "auto-saved" in call_kwargs.kwargs.get("tags", call_kwargs.args[3] if len(call_kwargs.args) > 3 else [])
-
-    def test_title_derived_from_first_comment(self, workdir, mock_memory):
-        from agent.core.execute_python import execute_python
-
-        code = "# My amazing snippet\nx = 1\ny = 2\nz = x + y\nprint(z)\n"
-        execute_python(code=code, workdir=workdir, verbose=False, agent_dir=None)
-        mock_memory.save_snippet.assert_called_once()
-        call = mock_memory.save_snippet.call_args
-        # save_snippet is always called with keyword arguments
-        saved_title = call.kwargs["title"]
-        assert "My amazing snippet" in saved_title
-
-    def test_trivial_oneliner_is_not_saved(self, workdir, mock_memory):
-        from agent.core.execute_python import execute_python
-
-        # Very short one-liner – below both thresholds
-        execute_python(code="print(1)\n", workdir=workdir, verbose=False, agent_dir=None)
-        mock_memory.save_snippet.assert_not_called()
-
-    def test_failing_code_is_not_saved(self, workdir, mock_memory):
-        from agent.core.execute_python import execute_python
-
-        # This code will exit with returncode != 0
-        execute_python(
-            code="raise ValueError('oops')\n",
-            workdir=workdir,
-            verbose=False,
-            agent_dir=None,
-        )
-        mock_memory.save_snippet.assert_not_called()
-
-    def test_memory_error_does_not_propagate(self, workdir, mock_memory):
-        from agent.core.execute_python import execute_python
-
-        mock_memory.save_snippet.side_effect = RuntimeError("DB is down")
-        # Should NOT raise; best-effort save
-        code = "x=1\ny=2\nz=3\nprint(x+y+z)\n"
-        result = execute_python(code=code, workdir=workdir, verbose=False, agent_dir=None)
-        assert "3" in result or "6" in result or "successfully" in result
 
 
 # ---------------------------------------------------------------------------
@@ -272,60 +208,31 @@ class TestRunCommandVerboseLogging:
 
 
 # ---------------------------------------------------------------------------
-# run_command – auto-save to vector memory
+# No automatic saves to vector memory
 # ---------------------------------------------------------------------------
 
 
-class TestRunCommandAutoSave:
-    @pytest.fixture()
-    def allowed(self) -> Iterable[str]:
-        return ["pytest", "ruff", "pip"]
+class TestNoAutoSave:
+    def test_execute_python_success_is_not_saved(self, workdir, mock_memory):
+        from agent.core.execute_python import execute_python
 
-    def test_successful_command_is_saved(self, workdir, agent_dir, mock_memory, allowed):
-        from agent.core.run_command import run_command
-
-        run_command(
-            command=["pytest", "--version"],
-            workdir=workdir,
-            agent_dir=agent_dir,
-            allowed_commands=allowed,
-            verbose=False,
-            cwd=".",
-        )
-        mock_memory.save_snippet.assert_called_once()
-        call_kwargs = mock_memory.save_snippet.call_args
-        tags = call_kwargs.kwargs.get("tags", call_kwargs.args[3] if len(call_kwargs.args) > 3 else [])
-        assert "run_command" in tags
-        assert "pytest" in tags
-
-    def test_failing_command_is_not_saved(self, workdir, agent_dir, mock_memory, allowed):
-        from agent.core.run_command import run_command
-
-        # pytest --co on empty dir returns non-zero
-        run_command(
-            command=["pytest", "--co", "-q", "nonexistent_path_xyz"],
-            workdir=workdir,
-            agent_dir=agent_dir,
-            allowed_commands=allowed,
-            verbose=False,
-            cwd=".",
-        )
+        code = "# A snippet\nimport math\nresult = math.sqrt(16)\nprint(result)\n"
+        assert "4.0" in execute_python(code=code, workdir=workdir, verbose=False, agent_dir=None)
         mock_memory.save_snippet.assert_not_called()
 
-    def test_memory_error_does_not_propagate(self, workdir, agent_dir, mock_memory, allowed):
+    def test_run_command_success_is_not_saved(self, workdir, agent_dir, mock_memory):
         from agent.core.run_command import run_command
 
-        mock_memory.save_snippet.side_effect = RuntimeError("DB is down")
-        # Should NOT raise; best-effort save
         result = run_command(
             command=["pytest", "--version"],
             workdir=workdir,
             agent_dir=agent_dir,
-            allowed_commands=allowed,
+            allowed_commands=["pytest"],
             verbose=False,
             cwd=".",
         )
         assert "[Exit code]: 0" in result
+        mock_memory.save_snippet.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

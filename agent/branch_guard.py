@@ -1,18 +1,10 @@
 import logging
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable
 
 from git import InvalidGitRepositoryError, Repo
 
 logger = logging.getLogger(__name__)
-
-
-def _candidate_repo_dirs(workdir: Path, extra_dirs: Iterable[Path]) -> Iterator[Path]:
-    yield workdir
-    for entry in sorted(workdir.iterdir()):
-        if entry.is_dir() and not entry.name.startswith(".") and (entry / ".git").exists():
-            yield entry
-    yield from extra_dirs
 
 
 def find_protected_branch_repos(
@@ -25,7 +17,12 @@ def find_protected_branch_repos(
     protected = set(protected_branches)
     violations = []
     seen = set()
-    for repo_dir in _candidate_repo_dirs(workdir, extra_dirs):
+    subrepos = [
+        entry
+        for entry in sorted(workdir.iterdir())
+        if entry.is_dir() and not entry.name.startswith(".") and (entry / ".git").exists()
+    ]
+    for repo_dir in [workdir, *subrepos, *extra_dirs]:
         if repo_dir.resolve() in seen:
             continue
         seen.add(repo_dir.resolve())

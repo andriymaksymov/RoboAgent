@@ -10,7 +10,7 @@ Plugin rules satisfied:
 
 from __future__ import annotations
 
-import agent.memory_backend as _backend
+import agent.code_memory as _backend
 from agent.core.registry import ToolError, tool
 
 

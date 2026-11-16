@@ -21,6 +21,6 @@ def pip_show(package: str, workdir: Path, verbose: bool, agent_dir: Path | None)
     result = run_module(
         "pip_show", ["pip", "show", "--disable-pip-version-check", package],
         run_cwd=workdir, cwd_label=".", timeout=None,
-        verbose=verbose, agent_dir=agent_dir, save_to_memory=False,
+        verbose=verbose, agent_dir=agent_dir,
     )
     return format_result(result)

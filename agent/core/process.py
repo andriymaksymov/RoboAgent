@@ -2,8 +2,8 @@
 
 Every invocation runs as ``python -m <module>`` with the agent's own interpreter, so the
 tools resolve from the same environment. In verbose mode (``verbose`` and ``agent_dir``
-set) each invocation is logged to ``{agent_dir}/logs/``; a successful one (exit code 0)
-is optionally persisted to the vector memory store via :mod:`agent.memory_backend`.
+set) each invocation is logged to ``{agent_dir}/logs/``. ``next_seq`` numbers those log
+files and is shared with ``execute_python``.
 """
 
 import logging
@@ -14,7 +14,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .. import memory_backend as _memory_backend
 from ..console_log import file_only
 from .registry import ToolError
 
@@ -75,32 +74,6 @@ def log_command_to_file(
     return log_path
 
 
-def auto_save_to_memory(tool_name: str, command: list[str], cwd: str, timeout: int) -> None:
-    """Silently persist a successful command to the vector memory store; never raises."""
-    try:
-        mem = _memory_backend.get_memory()
-        cmd_str = " ".join(command)
-        title = f"Auto cmd: {cmd_str[:80]}"
-        code = (
-            f"# Command  : {cmd_str}\n"
-            f"# CWD      : {cwd}\n"
-            f"# Timeout  : {timeout}s\n"
-            f"{cmd_str}\n"
-        )
-        mem.save_snippet(
-            title=title,
-            description=(
-                f"Auto-saved command that completed successfully (exit 0) via {tool_name}. "
-                f"Tool: {command[0]}. CWD: {cwd}."
-            ),
-            code=code,
-            tags=["auto-saved", tool_name, command[0]],
-        )
-        logger.debug("%s: command auto-saved to memory (%r)", tool_name, title)
-    except Exception as exc:  # noqa: BLE001  # pragma: no cover – best-effort, never block
-        logger.debug("%s: auto-save to memory failed: %s", tool_name, exc)
-
-
 def run_module(
     tool_name: str,
     command: list[str],
@@ -110,12 +83,11 @@ def run_module(
     timeout: int | None,
     verbose: bool,
     agent_dir: Path | None,
-    save_to_memory: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     """Run ``python -m <command[0]> <command[1:]>`` in *run_cwd* and return the result.
 
     *command* is the logical command (e.g. ``["pytest", "-q"]``); *cwd_label* is the
-    model-facing cwd used in logs and memory.
+    model-facing cwd used in logs.
     """
     program, *program_args = command
     seconds = effective_timeout(timeout)
@@ -150,9 +122,6 @@ def run_module(
         raise ToolError(f"Command timed out after {seconds}s.") from exc
 
     log_process_result(tool_name, result, time.perf_counter() - started, full_output=program == "pytest")
-
-    if result.returncode == 0 and save_to_memory:
-        auto_save_to_memory(tool_name, command, cwd_label, seconds)
     return result
 
 

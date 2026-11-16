@@ -21,7 +21,7 @@ execute_python_module = importlib.import_module("agent.core.execute_python")
 @pytest.fixture(autouse=True)
 def mock_memory():
     mem = MagicMock()
-    with patch("agent.memory_backend.get_memory", return_value=mem):
+    with patch("agent.code_memory.get_memory", return_value=mem):
         yield mem
 
 
@@ -60,7 +60,7 @@ def invoke(name, config, **arguments):
 class TestRunCommandGate:
     def test_disabled_by_default(self, config):
         assert config.enable_run_command is False
-        names = {schema["function"]["name"] for schema in REGISTRY.schemas_for(config)}
+        names = {spec.name for spec in REGISTRY.schemas_for(config)}
         assert "run_command" not in names
         assert {"run_tests", "lint", "format_code", "pip_install", "git_checkout", "git_clone"} <= names
 
@@ -72,7 +72,7 @@ class TestRunCommandGate:
         workdir, _ = roots
         (workdir / "test_ok.py").write_text("def test_ok():\n    pass\n", encoding="utf-8")
         enabled = dataclasses.replace(config, enable_run_command=True)
-        assert "run_command" in {s["function"]["name"] for s in REGISTRY.schemas_for(enabled)}
+        assert "run_command" in {s.name for s in REGISTRY.schemas_for(enabled)}
         assert invoke("run_command", enabled, command=["pytest", "-q"]).startswith("[Exit code]: 0")
 
     def test_config_file_flag(self, tmp_path):
@@ -131,12 +131,11 @@ class TestRunTests:
     def test_no_tests(self, config):
         assert "[Status]: no tests were collected" in invoke("run_tests", config)
 
-    def test_successful_run_saved_to_memory(self, config, roots, mock_memory):
+    def test_successful_run_not_saved_to_memory(self, config, roots, mock_memory):
         workdir, _ = roots
         (workdir / "test_ok.py").write_text("def test_ok():\n    pass\n", encoding="utf-8")
         invoke("run_tests", config)
-        mock_memory.save_snippet.assert_called_once()
-        assert "run_tests" in mock_memory.save_snippet.call_args.kwargs["tags"]
+        mock_memory.save_snippet.assert_not_called()
 
     @pytest.mark.parametrize("path", ["-p", "--rootdir=/", "../outside.py"])
     def test_rejects_options_and_escapes(self, config, path):
