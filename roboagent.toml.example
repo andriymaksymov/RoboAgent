@@ -32,5 +32,13 @@ allowed_commands = ["pytest", "pip", "ruff"]
 # (a hint to compact the context or split the task).
 context_warning_tokens = 32768
 
+# Sub-agents (delegate_tasks): run independent subtasks in parallel processes, each in its
+# own git clone under <workdir>/.subagents/<id>. Off by default. Sub-agents cannot delegate
+# further (ROBOAGENT_DEPTH) and only read the memory.
+enable_subagents = false
+max_subagents = 3                  # sub-agents running at the same time
+subagent_token_budget = 2000000    # total tokens per delegate_tasks call
+subagent_time_budget = 1800        # total seconds per delegate_tasks call
+
 # Optional: override the provider's model (preset / LLM_*_MODEL) for this run profile.
 

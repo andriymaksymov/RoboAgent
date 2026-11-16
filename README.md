@@ -28,6 +28,7 @@ RoboAgent/
 │   ├── console_log.py           # Compact colored console log view (full detail goes to the log file)
 │   ├── plugin_loader.py         # Validates and hot-reloads plugin tools
 │   ├── runner.py                # Main agent loop, tool dispatch and the per-run plugin report
+│   ├── task_file.py             # Prompt file format after a run (answer + token usage), read by delegate_tasks
 │   ├── llm/
 │   │   ├── __init__.py          # create_client(): picks the backend for the provider
 │   │   ├── base.py              # LLMClient interface, ToolSpec/ToolCall/ToolResult/LLMResponse
@@ -68,6 +69,8 @@ RoboAgent/
 │       └── utils.py             # Shared helpers: path resolution ('@agent/' root), run dir/paths for dev tools, git repo access
 │   └── plugin/
 │       ├── __init__.py          # Loads every plugin module at import time
+│       ├── delegate_tasks.py    # Runs independent subtasks in parallel sub-agent processes (off unless enable_subagents)
+│       ├── git_merge_from.py    # Merges a branch from another local repository (e.g. a sub-agent's copy)
 │       └── echo.py              # Example plugin tool and template
 ├── prompts/
 │   └── system.md                # System prompt used by the agent
@@ -95,10 +98,13 @@ Configuration is split in two:
   - `system_prompt` (default: `./prompts/system.md`)
   - `max_iterations` (default: `20`)
   - `context_warning_tokens` (default: `32768`): a request whose prompt exceeds this many tokens logs a large-context warning
-  - `context_warning_tokens` (default: `32768`): a request whose prompt exceeds this many tokens logs a large-context warning
   - `protected_branches` (default: `["main"]`): the agent refuses to start if a repository in the workdir (the workdir itself or a direct subfolder) is on one of these branches
   - `enable_run_command` (default: `false`): offer the generic `run_command` tool. While off, it is hidden from the model and calls to it are refused; the dedicated tools and plugins cover the usual needs
   - `allowed_commands` (default: `["pytest", "pip", "ruff"]`): tools `run_command` may execute when enabled; each runs as `python -m <tool>` with the agent's interpreter
+  - `enable_subagents` (default: `false`): offer the `delegate_tasks` tool, see [Sub-Agents](#sub-agents)
+  - `max_subagents` (default: `3`): sub-agents running at the same time
+  - `subagent_token_budget` (default: `2000000`): total tokens (input + output) the sub-agents of one `delegate_tasks` call may use
+  - `subagent_time_budget` (default: `1800`): total seconds one `delegate_tasks` call may take
   - `model` (optional): overrides the provider's model (`<PROVIDER>_MODEL`, `LLM_MODEL` or preset) for this run
   - `agent_dir` (optional): the agent's own repository, reachable by the tools as `@agent/...`, see [Self-Improvement](#self-improvement). Must exist. Omit it to disable self-improvement.
 
@@ -197,6 +203,8 @@ Available tools:
 - `git_commit(repo_path, message)`
 - `git_log(repo_path, max_count=10)`
 - `git_ls_files(repo_path, pathspec=None)`
+- `git_merge_from(repo_path, source_repo, branch, abort_on_conflict=False)` (plugin)
+- `delegate_tasks(tasks, source=".", iteration_limit=15, timeout=900)` (plugin, only when `enable_subagents = true`)
 - `echo(message, repeat=1)` (example plugin)
 
 These tools are intentionally narrow in scope so the agent can inspect and modify a project while staying within the configured workspace.
@@ -269,13 +277,36 @@ Only `agent/plugin/` of the *running* agent is watched, so hot reload applies wh
 
 The default `workdir` (`./workspace`) lies inside the agent repository. It is git-ignored and excluded from the agent's `ruff` and `pytest` configuration, so the agent's own checks don't pick up the project being built.
 
+### Sub-Agents
+
+With `enable_subagents = true` the agent gets the `delegate_tasks` plugin tool. It splits work into small, independent subtasks and runs each in a **separate process** (`python cli.py -p task.md -c sub.toml --quiet` with the agent's own interpreter), not in a thread: the tool registry, plugin loader, logging setup and counters are process-wide globals that two agents in one process would share.
+
+For each task, `delegate_tasks`:
+
+1. clones the source repository (`source`, default the workdir; `@agent` works too) into `<workdir>/.subagents/<id>` and creates the branch `sub/<id>`; only committed work is cloned;
+2. writes `task.md` (the task plus short sub-agent instructions) and `sub.toml` (the parent's provider, model, system prompt and limits, with `workdir` set to the copy, `max_iterations` set to `iteration_limit` and `enable_subagents = false`); both, and the sub-agent's `console.log`, are excluded via `.git/info/exclude`, and `.subagents/` is excluded in the workdir's repository;
+3. starts all sub-agents at once (up to `max_subagents` at a time), each killed with its process tree after `timeout` seconds;
+4. returns only each sub-agent's final answer (read back from its `task.md`, clipped to 2,000 characters), its branch, exit code and token usage. The sub-agent's conversation never enters the parent's context; that is where the context saving comes from.
+
+The parent then reviews each branch and merges it with `git_merge_from(repo_path, source_repo, branch)`, which fetches the branch from the local copy, merges it with a merge commit (`--no-ff`) and lists conflicting files. Conflicts are kept for resolving (edit, `git_add`, `git_commit`) or aborted with `abort_on_conflict=true`. It refuses protected branches and repositories with uncommitted changes.
+
+Limits against runaway recursion and cost:
+
+- `enable_subagents` is off by default; the tool is gated like `run_command`.
+- `ROBOAGENT_DEPTH`: sub-agents run with depth 1 and `delegate_tasks` refuses to run at depth 1 or more.
+- `max_subagents` caps how many run at once; `subagent_token_budget` is checked before each sub-agent starts (the rest are reported as skipped); `subagent_time_budget` caps every timeout.
+- Memory: several processes writing one ChromaDB file can fail with "database is locked", so sub-agents only read it (`memory_save` refuses at depth > 0); they report what is worth keeping, and the parent saves it.
+- Sub-agents log to the console only at WARNING level (`--quiet`), and their log file is named `logs/sub_<id>_task_<timestamp>.log`.
+
+`.subagents/` copies are kept after the run for review; delete them when they are merged.
+
 ### Prompting
 
-The system prompt lives in `prompts/system.md`. It instructs the model to inspect files before editing, validate changes after modifications, keep edits focused, commit validated changes, and return a concise summary. Its *Self-Improvement* section explains the `@agent/` root.
+The system prompt lives in `prompts/system.md`. It instructs the model to inspect files before editing, validate changes after modifications, keep edits focused, commit validated changes, and return a concise summary. Its *Self-Improvement* section explains the `@agent/` root, *Clone or Delegate* says when to try risky changes on a clone and when to split work into sub-agents, and *Knowledge Base* makes searching and saving the code memory a standing rule.
 
 ### Entrypoint
 
-`cli.py` is the command-line entrypoint. It takes the task prompt file and an optional run config file, runs the agent, and exits with `0` on success, `1` if the agent returns an error, or `2` for an invalid prompt or config file.
+`cli.py` is the command-line entrypoint. It takes the task prompt file and an optional run config file (`--workdir`, `--agent-dir` and `--max-iterations` override the config; `--quiet` limits the console to warnings), runs the agent, writes the final answer and token usage back into the prompt file, and exits with `0` on success, `1` if the agent returns an error, or `2` for an invalid prompt or config file.
 
 ## Setup
 
@@ -339,6 +370,7 @@ protected_branches = ["main"]
 enable_run_command = false   # generic run_command tool, off by default
 allowed_commands = ["pytest", "pip", "ruff"]
 context_warning_tokens = 32768   # warn when a request's prompt exceeds this
+enable_subagents = false     # delegate_tasks tool, off by default
 ```
 
 ## Usage
@@ -346,6 +378,7 @@ context_warning_tokens = 32768   # warn when a request's prompt exceeds this
 ```bash
 python cli.py --prompt-file prompt.md --config roboagent.toml
 python cli.py -p prompt.md -c roboagent.toml --verbose   # debug logging
+python cli.py -p prompt.md -c roboagent.toml --workdir ../other --max-iterations 10 --quiet
 python cli.py --help
 ```
 

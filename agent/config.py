@@ -7,6 +7,7 @@ against the config file's directory. Without a config file the defaults below ap
 relative to the current directory.
 """
 
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,8 +27,25 @@ DEFAULTS: dict[str, Any] = {
     "allowed_commands": ["pytest", "pip", "ruff"],
     "enable_run_command": False,
     "context_warning_tokens": DEFAULT_CONTEXT_WARNING_TOKENS,
+    "enable_subagents": False,
+    "max_subagents": 3,
+    "subagent_token_budget": 2_000_000,
+    "subagent_time_budget": 1800,
 }
 OPTIONAL_KEYS = {"model", "agent_dir"}
+
+# Nesting level of the current agent process: 0 for a top-level run, 1 for a sub-agent
+# started by delegate_tasks. Sub-agents may not delegate further and only read the memory.
+DEPTH_ENV = "ROBOAGENT_DEPTH"
+MAX_DEPTH = 1
+
+
+def agent_depth() -> int:
+    """Return the nesting level from ``ROBOAGENT_DEPTH`` (0 when unset or invalid)."""
+    try:
+        return max(int(os.environ.get(DEPTH_ENV, "0")), 0)
+    except ValueError:
+        return 0
 
 
 @dataclass(frozen=True)
@@ -48,6 +66,14 @@ class AgentConfig:
     enable_run_command: bool = False
     # A request whose prompt exceeds this many tokens logs a large-context warning.
     context_warning_tokens: int = DEFAULT_CONTEXT_WARNING_TOKENS
+    # Offer the delegate_tasks tool (sub-agents in separate processes). Off by default.
+    enable_subagents: bool = False
+    # How many sub-agents may run at the same time.
+    max_subagents: int = 3
+    # Total tokens (input + output) all sub-agents of one delegate_tasks call may use.
+    subagent_token_budget: int = 2_000_000
+    # Total wall-clock seconds one delegate_tasks call may take.
+    subagent_time_budget: int = 1800
 
     @property
     def provider(self) -> str:
@@ -85,7 +111,25 @@ def _positive_int(value: Any, key: str) -> int:
     return value
 
 
-def load_config(config_file: Path | None = None, *, verbose: bool = False) -> AgentConfig:
+def _bool(value: Any, key: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"'{key}' must be true or false")  # noqa: TRY004 - CLI reports ValueError
+    return value
+
+
+def load_config(
+    config_file: Path | None = None,
+    *,
+    verbose: bool = False,
+    workdir: Path | None = None,
+    agent_dir: Path | None = None,
+    max_iterations: int | None = None,
+) -> AgentConfig:
+    """Load the run config; ``workdir``, ``agent_dir`` and ``max_iterations`` override it.
+
+    The overrides come from the command line (relative paths resolve against the current
+    directory), so a sub-agent can be started without a generated config file.
+    """
     load_dotenv()
 
     settings = dict(DEFAULTS)
@@ -94,9 +138,18 @@ def load_config(config_file: Path | None = None, *, verbose: bool = False) -> Ag
         config_file = Path(config_file).resolve()
         settings.update(_read_config_file(config_file))
         base_dir = config_file.parent
+    if workdir is not None:
+        settings["workdir"] = str(Path(workdir).resolve())
+    if agent_dir is not None:
+        settings["agent_dir"] = str(Path(agent_dir).resolve())
+    if max_iterations is not None:
+        settings["max_iterations"] = max_iterations
 
     max_iterations = _positive_int(settings["max_iterations"], "max_iterations")
     context_warning_tokens = _positive_int(settings["context_warning_tokens"], "context_warning_tokens")
+    max_subagents = _positive_int(settings["max_subagents"], "max_subagents")
+    subagent_token_budget = _positive_int(settings["subagent_token_budget"], "subagent_token_budget")
+    subagent_time_budget = _positive_int(settings["subagent_time_budget"], "subagent_time_budget")
 
     provider = settings["provider"]
     if not isinstance(provider, str):
@@ -109,9 +162,8 @@ def load_config(config_file: Path | None = None, *, verbose: bool = False) -> Ag
     workdir = (base_dir / settings["workdir"]).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
 
-    enable_run_command = settings["enable_run_command"]
-    if not isinstance(enable_run_command, bool):
-        raise ValueError("'enable_run_command' must be true or false")  # noqa: TRY004
+    enable_run_command = _bool(settings["enable_run_command"], "enable_run_command")
+    enable_subagents = _bool(settings["enable_subagents"], "enable_subagents")
 
     agent_dir = settings.get("agent_dir")
     if agent_dir is not None:
@@ -132,5 +184,9 @@ def load_config(config_file: Path | None = None, *, verbose: bool = False) -> Ag
         verbose=verbose,
         enable_run_command=enable_run_command,
         context_warning_tokens=context_warning_tokens,
+        enable_subagents=enable_subagents,
+        max_subagents=max_subagents,
+        subagent_token_budget=subagent_token_budget,
+        subagent_time_budget=subagent_time_budget,
     )
 

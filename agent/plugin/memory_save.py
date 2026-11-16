@@ -36,6 +36,11 @@ def memory_save(
         tags: Optional list of keyword labels for categorisation
             (e.g. ["python", "error-handling", "networking"]).
     """
+    if _backend.is_read_only():
+        raise ToolError(
+            "The memory is read-only in a sub-agent (only the parent agent saves, to avoid "
+            "'database is locked' errors). Put the snippet worth saving in your final answer."
+        )
     if not title:
         raise ToolError("'title' must not be empty.")
     if not code:

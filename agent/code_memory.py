@@ -260,6 +260,18 @@ class CodeMemory:
         self._collection.delete(ids=[snippet_id])
 
 
+def is_read_only() -> bool:
+    """Whether this process may only read the shared store.
+
+    Sub-agents (``ROBOAGENT_DEPTH`` > 0) run in parallel processes; several writers on one
+    ChromaDB/SQLite file can fail with "database is locked", so only the top-level agent
+    saves. Sub-agents report what is worth keeping in their final answer instead.
+    """
+    from .config import agent_depth  # local import: keep this module importable standalone
+
+    return agent_depth() > 0
+
+
 def get_memory() -> CodeMemory:
     """Return a :class:`CodeMemory` for the agent's shared store at :data:`MEMORY_STORE_PATH`.
 
